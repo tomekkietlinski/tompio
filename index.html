@@ -1,0 +1,853 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TOMPIO Styleguide Builder</title>
+<style>
+:root{--ink:#14171c;--muted:#6b7380;--line:#e4e7ec;--ok:#16794a;--warn:#9a6700;--bad:#b42318;--accent:#6d5efc}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);min-height:100vh;line-height:1.45;
+  background:radial-gradient(1100px 600px at 8% -10%,#e6e1ff 0,transparent 60%),radial-gradient(900px 500px at 105% 8%,#d9f6ec 0,transparent 55%),#f6f7fb}
+main{max-width:1060px;margin:0 auto;padding:36px 18px 60px}
+.hero{padding:26px 28px;border-radius:20px;background:linear-gradient(135deg,#1c1b3a,#2b3a67 55%,#0f5d55);color:#fff;box-shadow:0 20px 60px -20px rgba(20,23,28,.45)}
+.hero h1{margin:0 0 6px;font-size:29px;letter-spacing:-.02em}
+.mark{letter-spacing:.06em;background:linear-gradient(90deg,#ffd66b,#7cf5c4);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{margin:0;opacity:.88;max-width:660px;font-size:14px}
+.herorow{margin-top:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.herorow input[type=text]{flex:1;min-width:220px;padding:11px 13px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);color:#fff;font:inherit}
+.herorow input[type=text]::placeholder{color:rgba(255,255,255,.65)}
+.herorow input[type=text]:focus{outline:none;border-color:#7cf5c4;background:rgba(255,255,255,.2)}
+.progress{margin-top:14px;display:flex;align-items:center;gap:12px;font-size:13px}
+.bar{flex:1;height:8px;background:rgba(255,255,255,.2);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#ffd66b,#7cf5c4);transition:width .4s ease}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(2,1fr);margin-top:18px}
+@media(max-width:780px){.grid{grid-template-columns:1fr}}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px -12px rgba(16,24,40,.12)}
+.card h2{font-size:15px;margin:0 0 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.badge{font-size:11px;background:#eef0ff;color:var(--accent);border-radius:99px;padding:2px 9px;font-weight:600}
+.badge.done{background:#e3f7ee;color:var(--ok)}
+.hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+input[type=text],textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fbfbfd}
+input[type=text]:focus,textarea:focus{outline:none;border-color:var(--accent);background:#fff}
+textarea{min-height:76px;resize:vertical}
+.drop{display:block;margin-top:12px;border:2px dashed #cfd5e2;border-radius:14px;padding:16px;text-align:center;cursor:pointer;background:#fafbff;transition:all .2s;min-height:112px}
+.drop:hover,.drop.over{border-color:var(--accent);background:#f2f1ff}
+.drop input{display:none}
+.drop img{max-height:80px;max-width:100%}
+.drop strong{display:block;margin-top:22px}
+.row{display:flex;gap:10px;align-items:center;margin-top:10px}
+.row label{font-size:12px;color:var(--muted);width:150px;flex:none}
+.row input{flex:1}
+.sw{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);flex:none;transition:background .3s}
+.tag{font-size:11px;color:var(--accent);min-width:58px}
+.swaps{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+.mini{font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer;font-family:inherit}
+.mini:hover{border-color:var(--accent);color:var(--accent)}
+.palette{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.palette span{width:40px;height:40px;border-radius:12px;border:1px solid rgba(0,0,0,.08);cursor:pointer;transition:transform .15s}
+.palette span:hover{transform:scale(1.08)}
+.btn{background:linear-gradient(135deg,#6d5efc,#3b82f6);color:#fff;border:0;border-radius:12px;padding:13px 22px;font:inherit;font-weight:600;cursor:pointer;box-shadow:0 10px 24px -10px rgba(109,94,252,.7)}
+.btn:hover{transform:translateY(-1px)}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line);box-shadow:none}
+.actions{display:flex;gap:10px;align-items:center;margin-top:20px;flex-wrap:wrap}
+.msg{font-size:13px;min-height:18px;margin-top:10px;color:var(--bad)}
+.msg.good{color:var(--ok)}
+.out{margin-top:24px;display:grid;gap:16px}
+.preview{border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#fff}
+.preview .top{padding:18px 20px;display:flex;align-items:center;gap:14px;color:#fff;min-height:70px}
+.preview .body{padding:18px 20px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.pbtn{border:0;border-radius:10px;padding:10px 16px;font:inherit;font-weight:600;color:#fff}
+.plink{font-weight:600;text-decoration:none}
+.tab{padding:6px 12px;border-radius:99px;font-size:12px;color:#fff;font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:10px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;color:var(--muted);font-weight:600}
+.pill{display:inline-block;padding:3px 9px;border-radius:99px;font-size:12px;font-weight:600}
+.pill.ok{background:#e3f7ee;color:var(--ok)}
+.pill.bad{background:#fdecea;color:var(--bad)}
+.pill.src{background:#eef0ff;color:var(--accent)}
+.dot{display:inline-block;width:14px;height:14px;border-radius:5px;vertical-align:middle;margin-right:6px;border:1px solid rgba(0,0,0,.1)}
+.chips{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;margin-bottom:14px}
+.chip{font-size:10px;color:var(--muted);text-align:center;cursor:pointer}
+.chip div{height:46px;border-radius:9px;margin-bottom:5px;border:1px solid rgba(0,0,0,.06)}
+.logos{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:10px}
+.scan-title{font-weight:600;margin-top:14px}
+.scan-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.scan-sw{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);cursor:pointer}
+.scan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px}
+.scan-cell img{width:100%;height:90px;object-fit:contain;background:#f4f5f8;border-radius:8px;display:block}
+.scan-cell .mini{margin-top:6px;width:100%}
+@media(max-width:600px){.logos{grid-template-columns:1fr}}
+.logotile{border-radius:12px;border:1px solid var(--line);overflow:hidden}
+.logotile .stage{height:104px;display:flex;align-items:center;justify-content:center;padding:12px}
+.logotile .stage img{max-height:72px;max-width:88%}
+.logotile .cap{font-size:11px;color:var(--muted);padding:7px 10px;border-top:1px solid var(--line);background:#fff}
+.grads{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:10px}
+@media(max-width:700px){.grads{grid-template-columns:1fr}}
+.grad{border-radius:12px;overflow:hidden;border:1px solid var(--line);cursor:pointer}
+.grad .fill{height:92px}
+.grad .cap{font-size:11px;color:var(--muted);padding:7px 10px;background:#fff;border-top:1px solid var(--line);word-break:break-all}
+.saved{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.savechip{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:99px;padding:5px 6px 5px 12px;font-size:13px;background:#fff}
+.savechip button{border:0;background:#f1f3f7;border-radius:99px;width:22px;height:22px;cursor:pointer;color:var(--muted);font:inherit;line-height:1}
+.savechip span{cursor:pointer}
+.savechip span:hover{color:var(--accent)}
+pre{background:#0f1320;color:#cfe0ff;padding:14px;border-radius:12px;overflow:auto;font-size:12px;max-height:340px;white-space:pre-wrap;margin:12px 0 0}
+.muted{color:var(--muted);font-size:13px}
+ul{margin:6px 0 0 18px;padding:0}
+@media print{
+  body{background:#fff}
+  .no-print{display:none!important}
+  .hero{background:#1c1b3a!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .card{box-shadow:none;break-inside:avoid;page-break-inside:avoid}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <h1><span class="mark">TOMPIO</span> Styleguide Builder</h1>
+    <p>Drop a logo, add a hex, paste a link or describe the photos. One input is enough: colors are pulled from the logo automatically, and whatever you add overrides them.</p>
+    <div class="herorow no-print">
+      <input type="text" id="netname" placeholder="Network name (e.g. Pack Leadership Community)">
+      <button class="btn ghost" id="save" style="padding:11px 18px">Save</button>
+    </div>
+    <div class="progress"><span id="pcount">0 / 4 inputs</span><div class="bar"><i id="pbar"></i></div></div>
+  </section>
+
+  <section class="card no-print" id="savedCard" style="margin-top:16px;display:none">
+    <h2>Saved networks</h2>
+    <div class="saved" id="savedList"></div>
+  </section>
+
+  <div class="grid no-print">
+    <section class="card">
+      <h2>Logo <span class="badge" id="b-logo">optional</span></h2>
+      <p class="hint">Colors are sampled from the logo and fill empty color fields.</p>
+      <label class="drop" id="drop">
+        <input type="file" id="logo" accept="image/*">
+        <div id="dropInner"><strong>Drop a logo here</strong><div class="hint">or click to choose a PNG, JPG or SVG</div></div>
+      </label>
+      <div class="palette" id="palette"></div>
+      <p class="hint" id="palHint"></p>
+    </section>
+
+    <section class="card">
+      <h2>Brand colors <span class="badge" id="b-colors">optional</span></h2>
+      <p class="hint">Mapped to the three Mighty roles. Leave any empty.</p>
+      <div class="row"><div class="sw" id="s-header"></div><label for="c-header">Header Color</label><input type="text" id="c-header" placeholder="#0d2b2b"><span class="tag" id="t-header"></span></div>
+      <div class="row"><div class="sw" id="s-buttons"></div><label for="c-buttons">Buttons &amp; Tabs</label><input type="text" id="c-buttons" placeholder="#2a3078"><span class="tag" id="t-buttons"></span></div>
+      <div class="row"><div class="sw" id="s-links"></div><label for="c-links">Links &amp; Active Icons</label><input type="text" id="c-links" placeholder="#c8f060"><span class="tag" id="t-links"></span></div>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:13px;color:var(--muted)"><input type="checkbox" id="whiteHeader"> Header bar is white (text and icons sit on white)</label>
+      <div class="swaps">
+        <button class="mini" data-swap="header,buttons">⇄ Header / Buttons</button>
+        <button class="mini" data-swap="buttons,links">⇄ Buttons / Links</button>
+        <button class="mini" data-swap="header,links">⇄ Header / Links</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Network address <span class="badge" id="b-url">optional</span></h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="url" placeholder="https://..." style="flex:1">
+        <button class="mini" id="scan" style="padding:10px 14px;white-space:nowrap">Scan address</button>
+      </div>
+      <p class="hint">Scan reads colors, fonts, logo candidates and photos from the site. Nothing is saved until you build.</p>
+      <div id="scanBox"></div>
+    </section>
+
+    <section class="card">
+      <h2>Photo style <span class="badge" id="b-photo">optional</span></h2>
+      <textarea id="photo" placeholder="e.g. warm natural light, real people in action, no stock smiles"></textarea>
+      <label for="devices" class="hint" style="display:block;margin-top:14px;font-weight:600">Graphic devices</label>
+      <textarea id="devices" placeholder="e.g. flame-shaped photo mask; grayscale photo on teal with amber block; asymmetric card corners; amber line icons"></textarea>
+      <label class="drop" for="motifs" style="min-height:84px;margin-top:12px">
+        <input type="file" id="motifs" accept="image/*" multiple>
+        <div><strong style="margin-top:8px">Drop motif images</strong><div class="hint">one per line in Graphic devices, same order</div></div>
+      </label>
+      <div class="logos" id="mGrid" style="grid-template-columns:repeat(3,1fr)"></div>
+    </section>
+  </div>
+
+  <div class="actions no-print">
+    <button class="btn" id="go">Build styleguide</button>
+    <button class="btn ghost" id="print">Export PDF</button>
+    <button class="btn ghost" id="brief">Copy brief</button>
+    <button class="btn ghost" id="clear">Reset</button>
+  </div>
+  <div class="msg no-print" id="msg"></div>
+
+  <div class="out" id="out"></div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const WHITE = '#ffffff';
+const DARK_STAGE = '#14171c';
+const DARK_TEXT = '#14171c';
+const LIGHT_STAGE = '#f6f7fb';
+const STORE = 'tompio.networks.v1';
+const ROLES = [
+  {key:'header',  full:'Header Color'},
+  {key:'buttons', full:'Buttons & Tabs'},
+  {key:'links',   full:'Links & Active Icons'}
+];
+const DEFAULT_DROP = '<strong>Drop a logo here</strong><div class="hint">or click to choose a PNG, JPG or SVG</div>';
+let logoDataUrl = null, logoRoles = null, msgTimer = null, motifUris = [];
+
+/* ---------- helpers ---------- */
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function setMsg(t, good){
+  const el = $('msg'); el.textContent = t; el.className = 'msg no-print' + (good ? ' good' : '');
+  clearTimeout(msgTimer);
+  if(t) msgTimer = setTimeout(() => { el.textContent = ''; }, 4000);
+}
+function copyText(t, note){
+  const done = () => setMsg(note || 'Copied.', true);
+  const fb = () => { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){ setMsg('Copy failed — select the text manually.'); } document.body.removeChild(ta); };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done).catch(fb); else fb();
+}
+
+/* ---------- color math ---------- */
+function normHex(s){
+  if(!s) return null;
+  s = s.trim().replace(/^#?/, '#');
+  if(/^#[0-9a-f]{3}$/i.test(s)) s = '#' + s.slice(1).split('').map(c => c + c).join('');
+  return /^#[0-9a-f]{6}$/i.test(s) ? s.toLowerCase() : null;
+}
+function rgb(h){ return [1,3,5].map(i => parseInt(h.slice(i, i+2), 16)); }
+function toHex(a){ return '#' + a.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2,'0')).join(''); }
+function lum(h){
+  return rgb(h).map(c => { c /= 255; return c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); })
+    .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+}
+function ratio(a, b){ const x = lum(a), y = lum(b); return (Math.max(x,y)+0.05)/(Math.min(x,y)+0.05); }
+function mix(h, t, k){ const a = rgb(h), b = rgb(t); return toHex(a.map((v,i) => v + (b[i]-v)*k)); }
+function hexToHsl(h){
+  let [r,g,b] = rgb(h).map(v => v/255);
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b); let H = 0, S = 0; const L = (mx+mn)/2;
+  if(mx !== mn){
+    const d = mx - mn;
+    S = L > 0.5 ? d/(2-mx-mn) : d/(mx+mn);
+    if(mx === r) H = (g-b)/d + (g < b ? 6 : 0);
+    else if(mx === g) H = (b-r)/d + 2;
+    else H = (r-g)/d + 4;
+    H *= 60;
+  }
+  return [H, S*100, L*100];
+}
+function hslToHex([H,S,L]){
+  H = ((H % 360) + 360) % 360; S = Math.max(0,Math.min(100,S))/100; L = Math.max(0,Math.min(100,L))/100;
+  const C = (1 - Math.abs(2*L-1))*S, X = C*(1 - Math.abs((H/60)%2 - 1)), m = L - C/2;
+  const [r,g,b] = H<60?[C,X,0]:H<120?[X,C,0]:H<180?[0,C,X]:H<240?[0,X,C]:H<300?[X,0,C]:[C,0,X];
+  return toHex([(r+m)*255,(g+m)*255,(b+m)*255]);
+}
+function sat(h){ return hexToHsl(h)[1]/100; }
+/* Shifts lightness step by step until the pair clears the threshold. */
+function fixFor(c, partner, min){
+  if(ratio(c, partner) >= min) return c;
+  const [H,S,L] = hexToHsl(c);
+  const darken = lum(partner) > 0.179;
+  for(let step = 1; step <= 100; step++){
+    const cand = hslToHex([H, S, L + (darken ? -step : step)]);
+    if(ratio(cand, partner) >= min) return cand;
+  }
+  return null;
+}
+function bestText(bg){ return ratio(bg, WHITE) >= ratio(bg, DARK_TEXT) ? WHITE : DARK_TEXT; }
+function scale(base){
+  return {
+    '50': mix(base, WHITE, .92), '100': mix(base, WHITE, .80), '200': mix(base, WHITE, .60),
+    '300': mix(base, WHITE, .40), '400': base,
+    '600': mix(base, '#000000', .20), '700': mix(base, '#000000', .40),
+    '800': mix(base, '#000000', .60), '900': mix(base, '#000000', .80)
+  };
+}
+
+/* ---------- logo colors ---------- */
+function extractPalette(src){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 96 / Math.max(img.width || 1, img.height || 1));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round((img.width || 96)*s));
+      c.height = Math.max(1, Math.round((img.height || 96)*s));
+      const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, c.width, c.height);
+      let data;
+      try { data = ctx.getImageData(0, 0, c.width, c.height).data; } catch(e){ reject(e); return; }
+      const buckets = new Map();
+      for(let i = 0; i < data.length; i += 4){
+        if(data[i+3] < 200) continue;
+        const r = data[i], g = data[i+1], b = data[i+2];
+        const key = ((r>>4)<<8) | ((g>>4)<<4) | (b>>4);
+        let bk = buckets.get(key); if(!bk){ bk = {n:0,r:0,g:0,b:0}; buckets.set(key, bk); }
+        bk.n++; bk.r += r; bk.g += g; bk.b += b;
+      }
+      const list = [...buckets.values()].map(b => ({n: b.n, hex: toHex([b.r/b.n, b.g/b.n, b.b/b.n])})).sort((a,b) => b.n - a.n);
+      if(!list.length){ reject(new Error('empty')); return; }
+      resolve(list);
+    };
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+function far(a, b){ const p = rgb(a), q = rgb(b); return Math.hypot(p[0]-q[0], p[1]-q[1], p[2]-q[2]); }
+function pickRoles(list){
+  const total = list.reduce((s,x) => s + x.n, 0);
+  const cand = list.filter(x => x.n/total > 0.004).map(x => ({...x, sat: sat(x.hex), lum: lum(x.hex)}));
+  const darks = cand.filter(x => x.lum < 0.2);
+  const header = (darks[0] || cand[0] || {}).hex || null;
+  const accents = cand.filter(x => x.sat > 0.3 && x.hex !== header && (!header || far(x.hex, header) > 60));
+  const buttons = (accents[0] || cand.find(x => x.hex !== header && (!header || far(x.hex, header) > 60)) || {}).hex || null;
+  const links = (accents.find(x => x.hex !== buttons && (!buttons || far(x.hex, buttons) > 60)) || {}).hex || null;
+  return {header, buttons, links, palette: cand.slice(0, 8).map(x => x.hex)};
+}
+
+/* ---------- inputs ---------- */
+ROLES.forEach(r => {
+  $('c-'+r.key).addEventListener('input', e => {
+    e.target.dataset.auto = '0';
+    $('t-'+r.key).textContent = e.target.value.trim() ? 'entered' : '';
+    refresh();
+  });
+});
+['url','photo','netname','devices'].forEach(id => $(id).addEventListener('input', update));
+
+document.querySelectorAll('[data-swap]').forEach(b => {
+  b.addEventListener('click', () => {
+    const [a, c] = b.dataset.swap.split(',');
+    const ea = $('c-'+a), ec = $('c-'+c);
+    [ea.value, ec.value] = [ec.value, ea.value];
+    const ta = ea.dataset.auto, tc = ec.dataset.auto;
+    ea.dataset.auto = tc; ec.dataset.auto = ta;
+    $('t-'+a).textContent = ea.value.trim() ? (ea.dataset.auto === '1' ? 'from logo' : 'entered') : '';
+    $('t-'+c).textContent = ec.value.trim() ? (ec.dataset.auto === '1' ? 'from logo' : 'entered') : '';
+    refresh();
+    if($('out').innerHTML) build();
+  });
+});
+
+function refresh(){
+  ROLES.forEach(r => { const h = normHex($('c-'+r.key).value); $('s-'+r.key).style.background = h || 'transparent'; });
+  update();
+}
+function fillFromLogo(){
+  if(!logoRoles) return;
+  ROLES.forEach(r => {
+    const el = $('c-'+r.key);
+    if(el.dataset.auto === '1' || !el.value.trim()){
+      const v = logoRoles[r.key];
+      el.value = v || ''; el.dataset.auto = v ? '1' : '0'; el.dataset.src = 'logo';
+      $('t-'+r.key).textContent = v ? 'from logo' : '';
+    }
+  });
+}
+function clearAuto(){
+  ROLES.forEach(r => {
+    const el = $('c-'+r.key);
+    if(el.dataset.auto === '1'){ el.value = ''; el.dataset.auto = '0'; $('t-'+r.key).textContent = ''; }
+  });
+}
+function renderPalette(list){
+  const box = $('palette'); box.innerHTML = '';
+  list.forEach(h => {
+    const s = document.createElement('span');
+    s.style.background = h; s.title = h + ' — click to assign, shift-click to copy';
+    s.addEventListener('click', ev => {
+      if(ev.shiftKey){ copyText(h, h + ' copied.'); return; }
+      const target = ROLES.find(r => !normHex($('c-'+r.key).value));
+      if(!target){ copyText(h, 'All roles filled — ' + h + ' copied instead.'); return; }
+      const el = $('c-'+target.key); el.value = h; el.dataset.auto = '0';
+      $('t-'+target.key).textContent = 'picked'; refresh();
+    });
+    box.appendChild(s);
+  });
+  $('palHint').textContent = list.length ? 'Click a swatch to assign it to the next empty role, shift-click to copy the hex.' : '';
+}
+function handleLogo(f){
+  const rd = new FileReader();
+  rd.onload = async () => {
+    logoDataUrl = rd.result;
+    $('dropInner').innerHTML = '';
+    const img = new Image(); img.src = logoDataUrl; img.alt = 'logo';
+    $('dropInner').appendChild(img);
+    try {
+      logoRoles = pickRoles(await extractPalette(logoDataUrl));
+      renderPalette(logoRoles.palette);
+      fillFromLogo();
+    } catch(e){
+      logoRoles = null; $('palette').innerHTML = '';
+      $('palHint').textContent = 'Colors could not be read from this file (SVGs are often blocked). Enter hex codes manually.';
+    }
+    refresh();
+  };
+  rd.readAsDataURL(f);
+}
+function resetLogo(){
+  logoDataUrl = null; logoRoles = null;
+  $('dropInner').innerHTML = DEFAULT_DROP;
+  $('palette').innerHTML = ''; $('palHint').textContent = '';
+  clearAuto();
+}
+const drop = $('drop');
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if(f) handleLogo(f); });
+$('logo').addEventListener('change', e => { if(e.target.files[0]) handleLogo(e.target.files[0]); });
+
+function inputsCount(){
+  return {
+    logo: !!logoDataUrl,
+    colors: ROLES.some(r => normHex($('c-'+r.key).value)),
+    url: !!$('url').value.trim(),
+    photo: !!$('photo').value.trim()
+  };
+}
+function update(){
+  const c = inputsCount(), n = Object.values(c).filter(Boolean).length;
+  $('pcount').textContent = n + ' / 4 inputs';
+  $('pbar').style.width = (n/4*100) + '%';
+  [['logo','b-logo'],['colors','b-colors'],['url','b-url'],['photo','b-photo']].forEach(([k,id]) => {
+    $(id).textContent = c[k] ? 'added' : 'optional';
+    $(id).className = 'badge' + (c[k] ? ' done' : '');
+  });
+}
+
+/* ---------- saved networks ---------- */
+function readStore(){
+  try { return JSON.parse(localStorage.getItem(STORE) || '[]'); } catch(e){ return []; }
+}
+function writeStore(list){
+  try { localStorage.setItem(STORE, JSON.stringify(list)); return true; } catch(e){ return false; }
+}
+function renderSaved(){
+  const list = readStore(), box = $('savedList');
+  $('savedCard').style.display = list.length ? '' : 'none';
+  box.innerHTML = '';
+  list.forEach((item, i) => {
+    const chip = document.createElement('div'); chip.className = 'savechip';
+    const name = document.createElement('span'); name.textContent = item.name; name.title = 'Click to load';
+    name.addEventListener('click', () => loadSaved(i));
+    const del = document.createElement('button'); del.textContent = '×'; del.title = 'Delete';
+    del.addEventListener('click', () => { const l = readStore(); l.splice(i, 1); writeStore(l); renderSaved(); });
+    chip.appendChild(name); chip.appendChild(del); box.appendChild(chip);
+  });
+}
+function loadSaved(i){
+  const item = readStore()[i]; if(!item) return;
+  $('netname').value = item.name || '';
+  $('url').value = item.url || '';
+  $('photo').value = item.photo || '';
+  ROLES.forEach(r => {
+    const el = $('c-'+r.key);
+    el.value = (item.colors && item.colors[r.key]) || '';
+    el.dataset.auto = '0';
+    $('t-'+r.key).textContent = el.value ? 'saved' : '';
+  });
+  if(item.logo){
+    logoDataUrl = item.logo;
+    $('dropInner').innerHTML = '';
+    const img = new Image(); img.src = logoDataUrl; img.alt = 'logo';
+    $('dropInner').appendChild(img);
+    extractPalette(logoDataUrl).then(l => { logoRoles = pickRoles(l); renderPalette(logoRoles.palette); }).catch(() => {});
+  } else resetLogo();
+  refresh();
+  build();
+  setMsg('Loaded "' + (item.name || 'network') + '".', true);
+}
+$('save').addEventListener('click', () => {
+  const name = $('netname').value.trim();
+  if(!name){ setMsg('Give the network a name before saving.'); $('netname').focus(); return; }
+  const entry = {
+    name, url: $('url').value.trim(), photo: $('photo').value.trim(),
+    colors: Object.fromEntries(ROLES.map(r => [r.key, normHex($('c-'+r.key).value) || ''])),
+    logo: logoDataUrl
+  };
+  const list = readStore();
+  const at = list.findIndex(x => x.name.toLowerCase() === name.toLowerCase());
+  if(at > -1) list[at] = entry; else list.push(entry);
+  if(writeStore(list)){ renderSaved(); setMsg('Saved "' + name + '".', true); return; }
+  const slim = {...entry, logo: null};
+  if(at > -1) list[at] = slim; else list[list.length-1] = slim;
+  if(writeStore(list)){ renderSaved(); setMsg('Saved "' + name + '" without the logo — the file was too large for browser storage.'); }
+  else setMsg('Could not save: browser storage is unavailable or full.');
+});
+
+$('print').addEventListener('click', () => {
+  if(!$('out').innerHTML){ setMsg('Build the styleguide first, then export.'); return; }
+  window.print();
+});
+$('clear').addEventListener('click', () => {
+  ['c-header','c-buttons','c-links','url','photo','netname','devices'].forEach(id => $(id).value = '');
+  ROLES.forEach(r => { $('t-'+r.key).textContent = ''; $('s-'+r.key).style.background = 'transparent'; $('c-'+r.key).dataset.auto = '0'; });
+  $('logo').value = ''; resetLogo(); motifUris = []; $('mGrid').innerHTML = '';
+  $('out').innerHTML = ''; $('scanBox').innerHTML = ''; setMsg(''); update();
+});
+$('go').addEventListener('click', build);
+$('whiteHeader').addEventListener('change', () => { if($('out').innerHTML) build(); });
+$('brief').addEventListener('click', () => {
+  if(!$('out').innerHTML){ setMsg('Build the styleguide first, then copy the brief.'); return; }
+  const L = [];
+  L.push('Brand brief: ' + ($('netname').value.trim() || 'Network'));
+  if($('url').value.trim()) L.push('Source: ' + $('url').value.trim());
+  ROLES.forEach(r => { const v = normHex($('c-'+r.key).value); if(v) L.push(r.full + ': ' + v + ' (' + ($('c-'+r.key).dataset.auto === '1' ? 'from ' + ($('c-'+r.key).dataset.src || 'logo') : 'entered') + ')'); });
+  L.push('Header: ' + ($('whiteHeader').checked ? 'white bar' : 'colored bar'));
+  const todo = [...$('out').querySelectorAll('ol li')].map(li => li.innerText);
+  L.push('', 'What to change:');
+  if(todo.length) todo.forEach(t => L.push('- ' + t)); else L.push('- Nothing, all contrast checks pass.');
+  const devs = $('devices').value.trim();
+  if(devs){ L.push('', 'Graphic devices:'); devs.split(/[;\n]+/).map(d => d.trim()).filter(Boolean).forEach(d => L.push('- ' + d)); }
+  if($('photo').value.trim()) L.push('', 'Photo style: ' + $('photo').value.trim() + ' (entered by you, verify before use)');
+  const miss = [];
+  if(!logoDataUrl) miss.push('logo');
+  ROLES.forEach(r => { if(!normHex($('c-'+r.key).value)) miss.push(r.full.toLowerCase()); });
+  if(!$('url').value.trim()) miss.push('source address');
+  if(miss.length) L.push('', 'Missing: ' + miss.join(', '));
+  copyText(L.join('\n'), 'Brief copied.');
+});
+$('motifs').addEventListener('change', e => {
+  motifUris = []; $('mGrid').innerHTML = '';
+  [...e.target.files].forEach(f => {
+    const rd = new FileReader();
+    rd.onload = () => {
+      motifUris.push(rd.result);
+      const im = new Image(); im.src = rd.result; im.alt = 'motif';
+      $('mGrid').appendChild(im);
+    };
+    rd.readAsDataURL(f);
+  });
+});
+
+/* ---------- site scanner (Cloudflare Worker) ---------- */
+const SCANNER = 'https://flat-brook-519e.tomekkietlinski.workers.dev';
+function el(tag, text, cls){ const n = document.createElement(tag); if(text != null) n.textContent = text; if(cls) n.className = cls; return n; }
+function isNeutral(h){ const [, S, L] = hexToHsl(h); return S < 8 || L > 96 || L < 4; }
+function describePhotos(stats){
+  const avg = k => stats.reduce((s, x) => s + x[k], 0) / stats.length;
+  const bright = avg('bright'), sat = avg('sat'), warm = avg('warm'), gray = avg('gray'), contrast = avg('contrast');
+  const parts = [
+    bright > 0.6 ? 'bright, airy' : bright < 0.35 ? 'dark, moody' : 'mid-tone',
+    sat < 0.2 ? 'desaturated' : sat > 0.5 ? 'vivid, saturated' : 'natural colour',
+    warm > 0.6 ? 'warm' : warm < 0.4 ? 'cool' : 'neutral temperature'
+  ];
+  if(gray > 0.5) parts.push('mostly black and white');
+  parts.push(contrast > 0.25 ? 'high contrast' : 'soft contrast');
+  return parts.join(', ');
+}
+async function imgStats(url){
+  const r = await fetch(SCANNER + '/image?url=' + encodeURIComponent(url));
+  if(!r.ok) return null;
+  const bmp = await createImageBitmap(await r.blob());
+  const s = Math.min(1, 64 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(bmp.width * s)); c.height = Math.max(1, Math.round(bmp.height * s));
+  const ctx = c.getContext('2d'); ctx.drawImage(bmp, 0, 0, c.width, c.height);
+  const d = ctx.getImageData(0, 0, c.width, c.height).data;
+  let n = 0, L = 0, L2 = 0, S = 0, warm = 0, gray = 0;
+  for(let i = 0; i < d.length; i += 4){
+    if(d[i+3] < 200) continue;
+    const r1 = d[i]/255, g1 = d[i+1]/255, b1 = d[i+2]/255;
+    const mx = Math.max(r1,g1,b1), mn = Math.min(r1,g1,b1), l = (mx+mn)/2;
+    const s2 = mx === mn ? 0 : (l > 0.5 ? (mx-mn)/(2-mx-mn) : (mx-mn)/(mx+mn));
+    n++; L += l; L2 += l*l; S += s2;
+    if(r1 > b1 + 0.05) warm++;
+    if(s2 < 0.08) gray++;
+  }
+  if(!n) return null;
+  const mL = L/n;
+  return { url, w: bmp.width, h: bmp.height, bright: mL, sat: S/n, warm: warm/n, gray: gray/n,
+           contrast: Math.sqrt(Math.max(0, L2/n - mL*mL)) };
+}
+async function useLogoFromUrl(u){
+  try {
+    const r = await fetch(SCANNER + '/image?url=' + encodeURIComponent(u));
+    if(!r.ok) throw new Error('image ' + r.status);
+    const blob = await r.blob();
+    handleLogo(new File([blob], 'site-logo', { type: blob.type || 'image/png' }));
+    setMsg('Logo loaded from the site.', true);
+  } catch(e){ setMsg('Could not load that logo (' + e.message + ').'); }
+}
+async function showScan(d){
+  const box = $('scanBox'); box.innerHTML = '';
+  box.appendChild(el('div', 'Site scan: ' + (d.title || d.source || ''), 'scan-title'));
+  (d.warnings || []).forEach(w => box.appendChild(el('div', '⚠ ' + w, 'hint')));
+
+  // Kolory: wypełniamy tylko puste role
+  const roles = pickRoles(d.colors.map(c => ({ n: c.count, hex: c.hex })));
+  ROLES.forEach(r => {
+    const f = $('c-'+r.key);
+    if(!normHex(f.value) && roles[r.key]){
+      f.value = roles[r.key]; f.dataset.auto = '1'; f.dataset.src = 'site';
+      $('t-'+r.key).textContent = 'from site';
+    }
+  });
+  refresh();
+
+  const sw = d.colors.filter(c => !isNeutral(c.hex)).slice(0, 12);
+  if(sw.length){
+    box.appendChild(el('div', 'Colors found on the site (click to assign to the next empty role):', 'hint'));
+    const row = el('div', '', 'scan-row');
+    sw.forEach(c => {
+      const s = el('span', '', 'scan-sw'); s.style.background = c.hex; s.title = c.hex + ' (' + c.count + ' uses)';
+      s.addEventListener('click', () => {
+        const t = ROLES.find(r => !normHex($('c-'+r.key).value));
+        if(!t){ copyText(c.hex, c.hex + ' copied.'); return; }
+        const f = $('c-'+t.key); f.value = c.hex; f.dataset.auto = '0';
+        $('t-'+t.key).textContent = 'picked'; refresh();
+        if($('out').innerHTML) build();
+      });
+      row.appendChild(s);
+    });
+    box.appendChild(row);
+  }
+  if(d.fonts.length) box.appendChild(el('div', 'Fonts: ' + d.fonts.map(f => f.name).join(', '), 'hint'));
+
+  if(d.logo_candidates.length){
+    box.appendChild(el('div', 'Logo candidates:', 'hint'));
+    const grid = el('div', '', 'scan-grid');
+    d.logo_candidates.slice(0, 4).forEach(lg => {
+      const cell = el('div', '', 'scan-cell');
+      const im = new Image(); im.src = SCANNER + '/image?url=' + encodeURIComponent(lg.src); im.alt = lg.alt || 'logo candidate';
+      const b = el('button', 'Use as logo', 'mini');
+      b.addEventListener('click', () => useLogoFromUrl(lg.src));
+      cell.appendChild(im); cell.appendChild(b); grid.appendChild(cell);
+    });
+    box.appendChild(grid);
+  }
+
+  const photos = d.images.filter(u => !/\.(svg|ico|gif)(\?|$)/i.test(u)).slice(0, 12);
+  if(photos.length){
+    const note = el('div', 'Photos from the site: analysing…', 'hint');
+    box.appendChild(note);
+    const stats = (await Promise.all(photos.map(u => imgStats(u).catch(() => null))))
+      .filter(s => s && s.w >= 200 && s.h >= 120).slice(0, 8);
+    if(!stats.length){
+      note.textContent = 'No usable photos found (too small or not loaded).';
+    } else {
+      const desc = describePhotos(stats) + ' (from site scan, verify visually)';
+      note.textContent = 'Photo style (heuristic, check it visually): ' + describePhotos(stats);
+      const grid = el('div', '', 'scan-grid');
+      stats.forEach(s => {
+        const cell = el('div', '', 'scan-cell');
+        const im = new Image(); im.src = SCANNER + '/image?url=' + encodeURIComponent(s.url); im.alt = 'site photo';
+        cell.appendChild(im); grid.appendChild(cell);
+      });
+      box.appendChild(grid);
+      const b = el('button', 'Use this as photo style', 'mini');
+      b.addEventListener('click', () => { $('photo').value = desc; update(); });
+      box.appendChild(b);
+      if(!$('photo').value.trim()) $('photo').value = desc;
+    }
+  }
+  update();
+  if(ROLES.some(r => normHex($('c-'+r.key).value))) build();
+}
+async function scanSite(){
+  const raw = $('url').value.trim();
+  if(!raw){ setMsg('Paste the network address first.'); $('url').focus(); return; }
+  const btn = $('scan'); btn.disabled = true; btn.textContent = 'Scanning…';
+  try {
+    const r = await fetch(SCANNER + '/scan?url=' + encodeURIComponent(raw));
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.hint || d.error || ('HTTP ' + r.status));
+    await showScan(d);
+    setMsg('Scan done. Check the results below.', true);
+  } catch(e){
+    setMsg('Scan failed (' + e.message + '). You can still enter colors by hand.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Scan address';
+  }
+}
+$('scan').addEventListener('click', scanSite);
+
+/* ---------- build ---------- */
+function build(){
+  const bad = ROLES.filter(r => $('c-'+r.key).value.trim() && !normHex($('c-'+r.key).value));
+  if(bad.length){ setMsg('Check the hex format (#RRGGBB) for: ' + bad.map(r => r.full).join(', ')); return; }
+  const n = Object.values(inputsCount()).filter(Boolean).length;
+  if(n === 0){ setMsg('Add at least one input: a logo, a color, an address or a photo style.'); return; }
+
+  const name = $('netname').value.trim(), url = $('url').value.trim(), photo = $('photo').value.trim();
+  const devices = $('devices').value.trim();
+  const devList = devices ? devices.split(/[;\n]+/).map(d => d.trim()).filter(Boolean) : [];
+  const C = {}, SRC = {};
+  ROLES.forEach(r => {
+    const el = $('c-'+r.key);
+    C[r.key] = normHex(el.value);
+    SRC[r.key] = el.dataset.auto === '1' ? 'from logo' : (el.value.trim() ? 'entered' : null);
+  });
+  const fallback = '#9aa3b2';
+  const onlyUrl = !logoDataUrl && !ROLES.some(r => normHex($('c-'+r.key).value));
+  const btnText = C.buttons ? bestText(C.buttons) : WHITE;
+
+  /* contrast pairs — text 4.5:1, UI parts 3:1 */
+  const pairs = [];
+  const whiteHeader = $('whiteHeader').checked;
+  const headerBg = whiteHeader ? WHITE : C.header;
+  if(C.header && !whiteHeader) pairs.push({what:'White text on header', fg:WHITE, bg:C.header, min:4.5, adjust:'bg', role:'header'});
+  if(C.header && whiteHeader)  pairs.push({what:'Header text on white', fg:C.header, bg:WHITE, min:4.5, adjust:'fg', role:'header'});
+  if(C.buttons) pairs.push({what:'Button text on buttons & tabs', fg:btnText, bg:C.buttons, min:4.5, adjust:'bg', role:'buttons'});
+  if(C.links)   pairs.push({what:'Link text on white', fg:C.links, bg:WHITE, min:4.5, adjust:'fg', role:'links'});
+  if(C.buttons && headerBg) pairs.push({what: whiteHeader ? 'Button against white header (UI)' : 'Button against header (UI)', fg:C.buttons, bg:headerBg, min:3, adjust:'fg', role:'buttons'});
+  if(C.links && headerBg)   pairs.push({what: whiteHeader ? 'Active icon on white header (UI)' : 'Active icon on header (UI)', fg:C.links, bg:headerBg, min:3, adjust:'fg', role:'links'});
+
+  const checks = pairs.map(p => {
+    const r = ratio(p.fg, p.bg), ok = r >= p.min;
+    const moving = p.adjust === 'fg' ? p.fg : p.bg;
+    const against = p.adjust === 'fg' ? p.bg : p.fg;
+    const fixed = ok ? null : fixFor(moving, against, p.min);
+    return {...p, r, ok, fixed, after: fixed ? ratio(fixed, against) : null};
+  });
+  const failing = checks.filter(c => !c.ok).length;
+  const todo = checks.filter(c => !c.ok).map(c => {
+    const role = ROLES.find(r => r.key === c.role).full;
+    return c.fixed
+      ? `Change ${role} to ${c.fixed}. ${c.what} is ${c.r.toFixed(2)}:1 and needs ${c.min}:1.`
+      : `${c.what}: no passing shade found. Pick a different base color.`;
+  });
+  const todoHtml = `<section class="card"><h2>What to change</h2>${todo.length
+    ? '<ol>' + todo.map(t => `<li style="margin:6px 0">${esc(t)}</li>`).join('') + '</ol>'
+    : '<p class="muted">Nothing to change. All contrast checks pass.</p>'}</section>`;
+
+  const rows = checks.map(c => `<tr>
+      <td>${esc(c.what)}<div class="muted">needs ${c.min}:1</div></td>
+      <td><span class="dot" style="background:${c.fg}"></span>${c.fg}<span class="muted"> on </span><span class="dot" style="background:${c.bg}"></span>${c.bg}</td>
+      <td>${c.r.toFixed(2)}:1 ${c.ok ? '<span class="pill ok">pass</span>' : '<span class="pill bad">fail</span>'}</td>
+      <td>${c.ok ? '<span class="muted">no change needed</span>' : (c.fixed ? `change ${esc(ROLES.find(r=>r.key===c.role).full)} to <strong>${c.fixed}</strong> <span class="muted">(${c.after.toFixed(2)}:1)</span>` : '<span class="pill bad">no fix found</span>')}</td>
+    </tr>`).join('') || '<tr><td colspan="4" class="muted">No colors to check yet.</td></tr>';
+
+  const srcRows = ROLES.map(r => `<tr>
+      <td>${esc(r.full)}</td>
+      <td>${C[r.key] ? `<span class="dot" style="background:${C[r.key]}"></span>${C[r.key]}` : '<span class="muted">not set</span>'}</td>
+      <td>${SRC[r.key] ? `<span class="pill src">${SRC[r.key]}</span>` : ''}</td>
+    </tr>`).join('');
+
+  const logoImg = logoDataUrl ? `<img src="${logoDataUrl}" alt="logo" style="max-height:44px;max-width:180px">` : '';
+  const preview = `
+    <div class="preview">
+      <div class="top" style="background:${whiteHeader ? WHITE : (C.header || fallback)};color:${whiteHeader ? (C.header || '#14171c') : WHITE}">${logoImg}${logoDataUrl ? '' : `<strong>${esc(name || 'Network name')}</strong>`}</div>
+      <div class="body">
+        <button class="pbtn" style="background:${C.buttons || fallback};color:${btnText}">Join now</button>
+        <span class="tab" style="background:${C.buttons || fallback};color:${btnText}">Community</span>
+        <a class="plink" href="#" onclick="return false" style="color:${C.links || '#374151'}">Example link</a>
+      </div>
+    </div>`;
+
+  const stages = [
+    {bg: LIGHT_STAGE, cap: 'Light mode — default background'},
+    {bg: C.header || fallback, cap: 'Light mode — header color'},
+    {bg: DARK_STAGE, cap: 'Dark mode — default background'}
+  ];
+  const logoBlock = logoDataUrl
+    ? `<div class="logos">${stages.map(s => `<div class="logotile"><div class="stage" style="background:${s.bg}"><img src="${logoDataUrl}" alt="logo"></div><div class="cap">${esc(s.cap)}</div></div>`).join('')}</div>
+       <p class="muted" style="margin-top:10px">Logos are exempt from contrast rules, so judge these by eye. If the logo disappears on any tile, that variant is missing from the client's material.</p>`
+    : '<p class="muted">No logo in this styleguide.</p>';
+
+  const gradDefs = [];
+  if(C.header && C.buttons) gradDefs.push({name:'Header → Buttons', css:`linear-gradient(135deg, ${C.header} 0%, ${C.buttons} 100%)`});
+  if(C.header)              gradDefs.push({name:'Header depth', css:`linear-gradient(135deg, ${C.header} 0%, ${scale(C.header)['800']} 100%)`});
+  if(C.buttons && C.links)  gradDefs.push({name:'Buttons → Links', css:`linear-gradient(135deg, ${C.buttons} 0%, ${C.links} 100%)`});
+  if(C.buttons)             gradDefs.push({name:'Buttons depth', css:`linear-gradient(135deg, ${C.buttons} 0%, ${scale(C.buttons)['800']} 100%)`});
+  if(C.header && C.links && C.header !== C.links) gradDefs.push({name:'Header → Links', css:`linear-gradient(135deg, ${C.header} 0%, ${C.links} 100%)`});
+  const gradBlock = gradDefs.length
+    ? `<div class="grads">${gradDefs.map(g => `<div class="grad" data-css="${esc(g.css)}" title="Click to copy the CSS"><div class="fill" style="background:${g.css}"></div><div class="cap"><strong>${esc(g.name)}</strong><br>${esc(g.css)}</div></div>`).join('')}</div>
+       <p class="muted" style="margin-top:10px">For tall banners and primary images. Click a tile to copy its CSS.</p>`
+    : '<p class="muted">Add at least one color to generate gradients.</p>';
+
+  const scaleBlock = ROLES.filter(r => C[r.key]).map(r => {
+    const sc = scale(C[r.key]);
+    const chips = Object.entries(sc).map(([k, v]) =>
+      `<div class="chip" data-hex="${v}" title="${v} — click to copy"><div style="background:${v}"></div>${k}</div>`).join('');
+    return `<h3 style="font-size:13px;margin:12px 0 8px">${esc(r.full)}</h3><div class="chips">${chips}</div>`;
+  }).join('') || '<p class="muted">No colors yet.</p>';
+
+  const prim = {};
+  ROLES.forEach(r => { if(C[r.key]) prim[r.key] = scale(C[r.key]); });
+  const sem = {};
+  if(C.header)  sem['header-bg'] = {light: C.header, dark: scale(C.header)['900'], note: 'dark mode is a suggestion'};
+  if(C.buttons) sem['button-bg'] = C.buttons;
+  if(C.links)   sem['link-text'] = C.links;
+  const tokens = {
+    network: name || null, source: url || null,
+    primitive: prim, semantic: sem,
+    gradients: Object.fromEntries(gradDefs.map(g => [g.name.toLowerCase().replace(/[^a-z]+/g,'-').replace(/^-|-$/g,''), g.css])),
+    note: 'Logo sits outside tokens. Fonts are fixed by Mighty.'
+  };
+  const tokensText = JSON.stringify(tokens, null, 2);
+  window._tokens = tokensText;
+
+  const miss = [];
+  if(!logoDataUrl) miss.push('Logo');
+  ROLES.forEach(r => { if(!C[r.key]) miss.push('Color: ' + r.full); });
+  if(!url) miss.push('Network address (source)');
+  if(!photo) miss.push('Photo style');
+
+  $('out').innerHTML = `${onlyUrl ? '<section class="card" style="border-color:#6d5efc"><h2>Only the address is saved</h2><p class="muted">This tool does not read websites. Add a logo or brand colors, or send the address to Claude in chat: it will scan the site and fill these in for you.</p></section>' : ''}${todoHtml}
+    <section class="card">
+      <h2>${name ? esc(name) : 'Styleguide'} <span class="badge${failing ? '' : ' done'}">${failing ? failing + ' contrast issue' + (failing > 1 ? 's' : '') : 'contrast OK'}</span></h2>
+      ${url ? `<p class="muted">Source: <a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a></p>` : ''}
+      ${preview}
+    </section>
+
+    <section class="card">
+      <h2>Logo on Mighty backgrounds</h2>
+      ${logoBlock}
+    </section>
+
+    <section class="card">
+      <h2>Color roles</h2>
+      <table><tr><th>Role</th><th>Value</th><th>Source</th></tr>${srcRows}</table>
+      ${logoRoles ? '<p class="muted" style="margin-top:10px">Colors sampled from a logo are pixel estimates. Verify them against the brand before use.</p>' : ''}
+    </section>
+
+    <section class="card">
+      <h2>Contrast check (WCAG AA)</h2>
+      <table><tr><th>Pair</th><th>Colors</th><th>Result</th><th>Suggestion</th></tr>${rows}</table>
+      <p class="muted">Text needs 4.5:1, interface parts and icons 3:1 against the color next to them.</p>
+    </section>
+
+    <section class="card">
+      <h2>Banner gradients</h2>
+      ${gradBlock}
+    </section>
+
+    <section class="card">
+      <h2>Color scales</h2>
+      ${scaleBlock}
+    </section>
+
+    <section class="card">
+      <h2>Photo style</h2>
+      <p>${photo ? esc(photo) : '<span class="muted">Not provided.</span>'}</p>
+        ${photo ? '<p class="hint" style="margin-top:8px">Source: entered by you. Verify before use.</p>' : ''}
+      ${devices ? '<h2 style="margin-top:18px">Graphic devices</h2><ul>' + devList.map(d => '<li>' + esc(d) + '</li>').join('') + '</ul>' : ''}
+      ${motifUris.length ? '<div class="grads" style="margin-top:14px">' + motifUris.map((u, i) => '<div class="grad"><div class="fill" style="height:auto;background:#fff"><img src="' + u + '" alt="motif" style="width:100%;display:block"></div><div class="cap"><strong>' + esc(devList[i] || ('Motif ' + (i + 1))) + '</strong></div></div>').join('') + '</div>' : ''}
+    </section>
+
+    <section class="card">
+      <h2>Missing from the source material</h2>
+      ${miss.length ? `<ul>${miss.map(m => `<li>${esc(m)}</li>`).join('')}</ul>` : '<p class="muted">Nothing missing.</p>'}
+    </section>
+
+    <section class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <h2 style="margin:0">Design tokens (JSON for Figma import)</h2>
+        <button class="btn ghost no-print" id="copyTokens">Copy</button>
+      </div>
+      <pre>${esc(tokensText)}</pre>
+    </section>`;
+
+  $('copyTokens').addEventListener('click', () => copyText(window._tokens, 'Tokens copied.'));
+  $('out').querySelectorAll('.grad').forEach(g => g.addEventListener('click', () => copyText(g.dataset.css, 'Gradient CSS copied.')));
+  $('out').querySelectorAll('.chip[data-hex]').forEach(c => c.addEventListener('click', () => copyText(c.dataset.hex, c.dataset.hex + ' copied.')));
+  setMsg('');
+}
+
+renderSaved();
+update();
+</script>
+</body>
+</html>
