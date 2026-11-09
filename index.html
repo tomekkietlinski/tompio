@@ -78,6 +78,9 @@ th{font-size:12px;color:var(--muted);font-weight:600}
 .scan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px}
 .scan-cell img{width:100%;height:90px;object-fit:contain;background:#f4f5f8;border-radius:8px;display:block}
 .scan-cell .mini{margin-top:6px;width:100%}
+.scan-photos{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:8px}
+.scan-photos img{width:100%;height:170px;object-fit:cover;border-radius:8px;display:block;background:#f4f5f8}
+.scan-cap{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.35}
 @media(max-width:600px){.logos{grid-template-columns:1fr}}
 .logotile{border-radius:12px;border:1px solid var(--line);overflow:hidden}
 .logotile .stage{height:104px;display:flex;align-items:center;justify-content:center;padding:12px}
@@ -95,6 +98,53 @@ th{font-size:12px;color:var(--muted);font-weight:600}
 .savechip span:hover{color:var(--accent)}
 pre{background:#0f1320;color:#cfe0ff;padding:14px;border-radius:12px;overflow:auto;font-size:12px;max-height:340px;white-space:pre-wrap;margin:12px 0 0}
 .muted{color:var(--muted);font-size:13px}
+
+/* ---------- dark UI with glass panels (tool only; the brandbook output stays light) ---------- */
+body{
+  color:#e8ecf3;
+  background:
+    radial-gradient(900px 560px at 8% -8%, rgba(109,94,252,.35) 0, transparent 60%),
+    radial-gradient(800px 520px at 100% 6%, rgba(52,211,153,.22) 0, transparent 55%),
+    radial-gradient(700px 500px at 50% 110%, rgba(59,130,246,.18) 0, transparent 60%),
+    #0a0c12;
+}
+.grid > .card{
+  background:linear-gradient(160deg, rgba(255,255,255,.10), rgba(255,255,255,.03));
+  border:1px solid rgba(255,255,255,.14);
+  border-top-color:rgba(255,255,255,.22);
+  box-shadow:0 18px 50px -20px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08);
+  backdrop-filter:blur(18px) saturate(140%);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);
+  color:#e8ecf3;
+}
+.grid .card h2{color:#f4f6fb}
+.grid .hint,.grid .muted{color:#9aa4b5}
+.grid .badge{background:rgba(109,94,252,.22);color:#c9c2ff}
+.grid .badge.done{background:rgba(52,211,153,.18);color:#6ee7b7}
+.grid input[type=text],.grid textarea{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.14);color:#f4f6fb}
+.grid input[type=text]::placeholder,.grid textarea::placeholder{color:#6f7a8c}
+.grid input[type=text]:focus,.grid textarea:focus{background:rgba(255,255,255,.1);border-color:#8b7dff}
+.grid .drop{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.18)}
+.grid .drop:hover,.grid .drop.over{background:rgba(109,94,252,.12);border-color:#8b7dff}
+.grid .drop strong{color:#f4f6fb}
+.grid .mini{background:rgba(255,255,255,.08);color:#e8ecf3;border-color:rgba(255,255,255,.16)}
+.grid .mini:hover{border-color:#8b7dff;color:#fff}
+.grid .scan-cell img,.grid .scan-photos img,.grid .logotile{background:rgba(255,255,255,.05)}
+.grid .scan-cap{color:#9aa4b5}
+.grid .scan-title{color:#f4f6fb}
+.grid .palette span,.grid .scan-sw{border-color:rgba(255,255,255,.18)}
+.actions .btn.ghost{background:rgba(255,255,255,.08);color:#e8ecf3;border-color:rgba(255,255,255,.16);backdrop-filter:blur(10px)}
+.msg{color:#ff9b91}
+.msg.good{color:#6ee7b7}
+.out{color:var(--ink)}
+.savechip{background:rgba(255,255,255,.08);color:#e8ecf3;border-color:rgba(255,255,255,.16)}
+.savechip button{background:rgba(255,255,255,.1);color:#c9d1de}
+
+@media print{
+  body{background:#fff!important;color:#14171c!important}
+  .grid > .card{background:#fff!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;color:#14171c!important;border-color:#e4e7ec!important;box-shadow:none!important}
+  .grid .card h2,.grid .hint,.grid .muted{color:#14171c!important}
+}
 ul{margin:6px 0 0 18px;padding:0}
 @media print{
   body{background:#fff}
@@ -315,6 +365,8 @@ ROLES.forEach(r => {
   });
 });
 ['url','photo','netname','devices'].forEach(id => $(id).addEventListener('input', update));
+// ręczna zmiana opisu zdjęć blokuje nadpisanie przy kolejnym skanie
+$('photo').addEventListener('input', e => { if(e.isTrusted) e.target.dataset.auto = '0'; });
 
 document.querySelectorAll('[data-swap]').forEach(b => {
   b.addEventListener('click', () => {
@@ -338,10 +390,11 @@ function fillFromLogo(){
   if(!logoRoles) return;
   ROLES.forEach(r => {
     const el = $('c-'+r.key);
+    const v = logoRoles[r.key];
+    if(!v) return; // logo has no color for this role: keep what the site scan (or the user) gave
     if(el.dataset.auto === '1' || !el.value.trim()){
-      const v = logoRoles[r.key];
-      el.value = v || ''; el.dataset.auto = v ? '1' : '0'; el.dataset.src = 'logo';
-      $('t-'+r.key).textContent = v ? 'from logo' : '';
+      el.value = v; el.dataset.auto = '1'; el.dataset.src = 'logo';
+      $('t-'+r.key).textContent = 'from logo';
     }
   });
 }
@@ -378,6 +431,7 @@ function handleLogo(f){
       logoRoles = pickRoles(await extractPalette(logoDataUrl));
       renderPalette(logoRoles.palette);
       fillFromLogo();
+      if($('out').innerHTML) build(); // keep the result in sync with the inputs
     } catch(e){
       logoRoles = null; $('palette').innerHTML = '';
       $('palHint').textContent = 'Colors could not be read from this file (SVGs are often blocked). Enter hex codes manually.';
@@ -570,13 +624,34 @@ async function useLogoFromUrl(u){
     setMsg('Logo loaded from the site.', true);
   } catch(e){ setMsg('Could not load that logo (' + e.message + ').'); }
 }
+// Domyślne kolory popularnych frameworków i wtyczek, które pojawiają się w CSS, a nie są marką
+const FRAMEWORK_COLORS = new Set([
+  '#0d6efd','#6610f2','#6f42c1','#d63384','#dc3545','#fd7e14','#ffc107','#198754','#20c997','#0dcaf0',
+  '#6c757d','#adb5bd','#f8f9fa','#212529','#007bff','#28a745','#17a2b8',            // Bootstrap
+  '#96588a','#7f54b3','#7adcb4','#a46497','#c6b8d8',                              // WooCommerce
+  '#0073aa','#00a0d2','#135e96','#2271b1','#d54e21','#f56e28',                    // WordPress
+  '#1a73e8','#4285f4','#ea4335','#fbbc05','#34a853',                              // Google
+  '#000000','#ffffff'
+]);
+// Odfiltrowuje domyślne kolory, układa według nasycenia i częstotliwości, scala podobne odcienie
+function brandCandidates(list){
+  const scored = list
+    .filter(c => !FRAMEWORK_COLORS.has(c.hex))
+    .map(c => ({ hex: c.hex, n: c.count, score: c.count * (0.25 + sat(c.hex)) }))
+    .sort((a, b) => b.score - a.score);
+  const kept = [];
+  scored.forEach(c => { if(!kept.some(k => far(k.hex, c.hex) < 45)) kept.push(c); });
+  return kept.slice(0, 8);
+}
+
 async function showScan(d){
   const box = $('scanBox'); box.innerHTML = '';
   box.appendChild(el('div', 'Site scan: ' + (d.title || d.source || ''), 'scan-title'));
   (d.warnings || []).forEach(w => box.appendChild(el('div', '⚠ ' + w, 'hint')));
 
   // Kolory: wypełniamy tylko puste role
-  const roles = pickRoles(d.colors.map(c => ({ n: c.count, hex: c.hex })));
+  const cands = brandCandidates(d.colors);
+  const roles = pickRoles(cands.map(c => ({ n: c.score, hex: c.hex })));
   ROLES.forEach(r => {
     const f = $('c-'+r.key);
     if(!normHex(f.value) && roles[r.key]){
@@ -586,9 +661,9 @@ async function showScan(d){
   });
   refresh();
 
-  const sw = d.colors.filter(c => !isNeutral(c.hex)).slice(0, 12);
+  const sw = cands.map(c => ({ hex: c.hex, count: c.n }));
   if(sw.length){
-    box.appendChild(el('div', 'Colors found on the site (click to assign to the next empty role):', 'hint'));
+    box.appendChild(el('div', 'Brand candidates from the site (framework defaults removed; click to assign):', 'hint'));
     const row = el('div', '', 'scan-row');
     sw.forEach(c => {
       const s = el('span', '', 'scan-sw'); s.style.background = c.hex; s.title = c.hex + ' (' + c.count + ' uses)';
@@ -629,17 +704,21 @@ async function showScan(d){
     } else {
       const desc = describePhotos(stats) + ' (from site scan, verify visually)';
       note.textContent = 'Photo style (heuristic, check it visually): ' + describePhotos(stats);
-      const grid = el('div', '', 'scan-grid');
+      const grid = el('div', '', 'scan-photos');
       stats.forEach(s => {
         const cell = el('div', '', 'scan-cell');
         const im = new Image(); im.src = SCANNER + '/image?url=' + encodeURIComponent(s.url); im.alt = 'site photo';
-        cell.appendChild(im); grid.appendChild(cell);
+        cell.appendChild(im);
+        cell.appendChild(el('div', describePhotos([s]), 'scan-cap'));
+        grid.appendChild(cell);
       });
       box.appendChild(grid);
+      box.appendChild(el('div', 'Check the samples above. If the description is wrong, edit the Photo style field below before building.', 'hint'));
       const b = el('button', 'Use this as photo style', 'mini');
-      b.addEventListener('click', () => { $('photo').value = desc; update(); });
+      b.addEventListener('click', () => { $('photo').value = desc; $('photo').dataset.auto = '1'; update(); });
       box.appendChild(b);
-      if(!$('photo').value.trim()) $('photo').value = desc;
+      const ph = $('photo');
+      if(!ph.value.trim() || ph.dataset.auto === '1'){ ph.value = desc; ph.dataset.auto = '1'; }
     }
   }
   update();
@@ -677,7 +756,7 @@ function build(){
   ROLES.forEach(r => {
     const el = $('c-'+r.key);
     C[r.key] = normHex(el.value);
-    SRC[r.key] = el.dataset.auto === '1' ? 'from logo' : (el.value.trim() ? 'entered' : null);
+    SRC[r.key] = el.dataset.auto === '1' ? 'from ' + (el.dataset.src || 'logo') : (el.value.trim() ? 'entered' : null);
   });
   const fallback = '#9aa3b2';
   const onlyUrl = !logoDataUrl && !ROLES.some(r => normHex($('c-'+r.key).value));
@@ -748,9 +827,9 @@ function build(){
 
   const gradDefs = [];
   if(C.header && C.buttons) gradDefs.push({name:'Header → Buttons', css:`linear-gradient(135deg, ${C.header} 0%, ${C.buttons} 100%)`});
-  if(C.header)              gradDefs.push({name:'Header depth', css:`linear-gradient(135deg, ${C.header} 0%, ${scale(C.header)['800']} 100%)`});
+  if(C.header)              gradDefs.push({name:'Header depth', css:`linear-gradient(135deg, ${C.header} 0%, ${mix(C.header, WHITE, 0.35)} 100%)`});
   if(C.buttons && C.links)  gradDefs.push({name:'Buttons → Links', css:`linear-gradient(135deg, ${C.buttons} 0%, ${C.links} 100%)`});
-  if(C.buttons)             gradDefs.push({name:'Buttons depth', css:`linear-gradient(135deg, ${C.buttons} 0%, ${scale(C.buttons)['800']} 100%)`});
+  if(C.buttons)             gradDefs.push({name:'Buttons depth', css:`linear-gradient(135deg, ${C.buttons} 0%, ${mix(C.buttons, WHITE, 0.35)} 100%)`});
   if(C.header && C.links && C.header !== C.links) gradDefs.push({name:'Header → Links', css:`linear-gradient(135deg, ${C.header} 0%, ${C.links} 100%)`});
   const gradBlock = gradDefs.length
     ? `<div class="grads">${gradDefs.map(g => `<div class="grad" data-css="${esc(g.css)}" title="Click to copy the CSS"><div class="fill" style="background:${g.css}"></div><div class="cap"><strong>${esc(g.name)}</strong><br>${esc(g.css)}</div></div>`).join('')}</div>
