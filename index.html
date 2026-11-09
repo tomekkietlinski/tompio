@@ -211,6 +211,7 @@ ul{margin:6px 0 0 18px;padding:0}
     <section class="card">
       <h2>Photo style <span class="badge" id="b-photo">optional</span></h2>
       <textarea id="photo" placeholder="e.g. warm natural light, real people in action, no stock smiles"></textarea>
+      <p class="hint">Mighty rule: no AI-generated images, including generated people. Describe real photography only.</p>
       <label for="devices" class="hint" style="display:block;margin-top:14px;font-weight:600">Graphic devices</label>
       <textarea id="devices" placeholder="e.g. flame-shaped photo mask; grayscale photo on teal with amber block; asymmetric card corners; amber line icons"></textarea>
       <label class="drop" for="motifs" style="min-height:84px;margin-top:12px">
@@ -218,6 +219,12 @@ ul{margin:6px 0 0 18px;padding:0}
         <div><strong style="margin-top:8px">Drop motif images</strong><div class="hint">one per line in Graphic devices, same order</div></div>
       </label>
       <div class="logos" id="mGrid" style="grid-template-columns:repeat(3,1fr)"></div>
+    </section>
+
+    <section class="card">
+      <h2>Spaces <span class="badge" id="b-spaces">optional</span></h2>
+      <textarea id="spaces" placeholder="One per line: Group | Space name | #hex&#10;e.g. Start Here | Welcome, Sister | #3a6fc0"></textarea>
+      <p class="hint">Each space gets one color. Its logo tile, banners and primary image use it.</p>
     </section>
   </div>
 
@@ -367,6 +374,7 @@ ROLES.forEach(r => {
 ['url','photo','netname','devices'].forEach(id => $(id).addEventListener('input', update));
 // ręczna zmiana opisu zdjęć blokuje nadpisanie przy kolejnym skanie
 $('photo').addEventListener('input', e => { if(e.isTrusted) e.target.dataset.auto = '0'; });
+$('spaces').addEventListener('input', () => { update(); if($('out').innerHTML) build(); });
 
 document.querySelectorAll('[data-swap]').forEach(b => {
   b.addEventListener('click', () => {
@@ -468,6 +476,19 @@ function update(){
     $(id).textContent = c[k] ? 'added' : 'optional';
     $(id).className = 'badge' + (c[k] ? ' done' : '');
   });
+  const sp = parseSpaces().length > 0;
+  $('b-spaces').textContent = sp ? 'added' : 'optional';
+  $('b-spaces').className = 'badge' + (sp ? ' done' : '');
+}
+
+/* ---------- spaces: "Group | Name | #hex" per line ---------- */
+function parseSpaces(){
+  const raw = $('spaces') ? $('spaces').value : '';
+  return raw.split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => {
+    const p = l.split('|').map(s => s.trim());
+    const hex = normHex(p[p.length - 1]);
+    return { group: p.length >= 3 ? p[0] : '', name: (p.length >= 3 ? p[1] : p[0]) || 'Unnamed', hex: hex || null };
+  });
 }
 
 /* ---------- saved networks ---------- */
@@ -495,6 +516,7 @@ function loadSaved(i){
   $('netname').value = item.name || '';
   $('url').value = item.url || '';
   $('photo').value = item.photo || '';
+  $('spaces').value = item.spaces || '';
   ROLES.forEach(r => {
     const el = $('c-'+r.key);
     el.value = (item.colors && item.colors[r.key]) || '';
@@ -516,7 +538,7 @@ $('save').addEventListener('click', () => {
   const name = $('netname').value.trim();
   if(!name){ setMsg('Give the network a name before saving.'); $('netname').focus(); return; }
   const entry = {
-    name, url: $('url').value.trim(), photo: $('photo').value.trim(),
+    name, url: $('url').value.trim(), photo: $('photo').value.trim(), spaces: $('spaces').value,
     colors: Object.fromEntries(ROLES.map(r => [r.key, normHex($('c-'+r.key).value) || ''])),
     logo: logoDataUrl
   };
@@ -535,7 +557,7 @@ $('print').addEventListener('click', () => {
   window.print();
 });
 $('clear').addEventListener('click', () => {
-  ['c-header','c-buttons','c-links','url','photo','netname','devices'].forEach(id => $(id).value = '');
+  ['c-header','c-buttons','c-links','url','photo','netname','devices','spaces'].forEach(id => $(id).value = '');
   ROLES.forEach(r => { $('t-'+r.key).textContent = ''; $('s-'+r.key).style.background = 'transparent'; $('c-'+r.key).dataset.auto = '0'; });
   $('logo').value = ''; resetLogo(); motifUris = []; $('mGrid').innerHTML = '';
   $('out').innerHTML = ''; $('scanBox').innerHTML = ''; setMsg(''); update();
@@ -644,6 +666,64 @@ function brandCandidates(list){
   return kept.slice(0, 8);
 }
 
+/* ---------- stock search tags from scan ---------- */
+const STOP_WORDS = new Set(('the and for with from your our this that are you was has have not all new img image photo logo icon '
+  + 'banner home page site http https www com jpg png webp svg mobile desktop menu close open click here more read view '
+  + 'about into over under also just more best top how what when where who will can our their there here its it\'s').split(' '));
+const STOP_PL = new Set('jest się nie dla jak czy oraz lub przez na do od po we za ze to ten ta te jego jej który która które są być'.split(' '));
+function toneTags(stats){
+  const avg = k => stats.reduce((a, s) => a + s[k], 0) / stats.length;
+  const t = [];
+  const b = avg('bright'), s = avg('sat'), w = avg('warm'), g = avg('gray'), c = avg('contrast');
+  const ar = stats.reduce((a, s) => a + s.w / s.h, 0) / stats.length;
+  if(b > 0.6) t.push('bright'); else if(b < 0.35) t.push('dark');
+  if(s < 0.2) t.push('muted'); else if(s > 0.4) t.push('vibrant');
+  if(w > 0.55) t.push('warm tones'); else if(w < 0.3) t.push('cool tones');
+  if(g > 0.5) t.push('black and white');
+  if(c > 0.25) t.push('high contrast');
+  if(ar > 1.3) t.push('wide'); else if(ar < 0.8) t.push('vertical');
+  return t;
+}
+function subjectTags(d){
+  const text = [...(d.image_alts || []), d.keywords || '', d.title || '', d.site_name || ''].join(' ').toLowerCase();
+  const freq = new Map();
+  text.split(/[^a-ząćęłńóśźż']+/).forEach(w => {
+    const x = w.replace(/^'+|'+$/g, '');
+    if(x.length < 4 || STOP_WORDS.has(x) || STOP_PL.has(x) || /^\d+$/.test(x)) return;
+    freq.set(x, (freq.get(x) || 0) + 1);
+  });
+  return [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([w]) => w);
+}
+function stockTagsBlock(stats, d){
+  const tone = toneTags(stats), subj = subjectTags(d);
+  const wrap = el('div', '', 'stock-tags');
+  wrap.style.marginTop = '14px';
+  wrap.appendChild(el('div', 'Stock search tags', 'hint'));
+  wrap.appendChild(el('div', subj.length
+    ? 'Subject words come from the site\'s own image descriptions (alt text), keywords and title. Tone comes from the sample photos.'
+    : 'No subject words: the site gives no image descriptions (alt text). Tone tags still apply; add subject words yourself.', 'hint'));
+  const row = el('div', '', 'scan-row');
+  [...subj.map(t => ({ t, kind: 'subject' })), ...tone.map(t => ({ t, kind: 'tone' }))].forEach(({ t, kind }) => {
+    const chip = el('span', t, 'tag');
+    chip.title = kind === 'subject' ? 'Subject (from site text)' : 'Tone (from pixels)';
+    chip.style.cursor = 'pointer';
+    chip.addEventListener('click', () => copyText(t, '"' + t + '" copied.'));
+    row.appendChild(chip);
+  });
+  wrap.appendChild(row);
+  const q = [...subj.slice(0, 4), ...tone.slice(0, 3)].join(' ');
+  if(q){
+    const line = el('div', q, 'hint');
+    line.style.margin = '8px 0';
+    wrap.appendChild(line);
+    const b = el('button', 'Copy search', 'mini');
+    b.addEventListener('click', () => copyText(q, 'Search copied. Paste it into Unsplash or Pexels.'));
+    wrap.appendChild(b);
+  }
+  wrap.appendChild(el('div', 'Check the results by eye: a tag from alt text may not match what is in the photo.', 'hint'));
+  return wrap;
+}
+
 async function showScan(d){
   const box = $('scanBox'); box.innerHTML = '';
   box.appendChild(el('div', 'Site scan: ' + (d.title || d.source || ''), 'scan-title'));
@@ -714,6 +794,7 @@ async function showScan(d){
       });
       box.appendChild(grid);
       box.appendChild(el('div', 'Check the samples above. If the description is wrong, edit the Photo style field below before building.', 'hint'));
+      box.appendChild(stockTagsBlock(stats, d));
       const b = el('button', 'Use this as photo style', 'mini');
       b.addEventListener('click', () => { $('photo').value = desc; $('photo').dataset.auto = '1'; update(); });
       box.appendChild(b);
@@ -725,7 +806,8 @@ async function showScan(d){
   if(ROLES.some(r => normHex($('c-'+r.key).value))) build();
 }
 async function scanSite(){
-  const raw = $('url').value.trim();
+  let raw = $('url').value.trim();
+  if(raw && !/^https?:\/\//i.test(raw)){ raw = 'https://' + raw; $('url').value = raw; }
   if(!raw){ setMsg('Paste the network address first.'); $('url').focus(); return; }
   const btn = $('scan'); btn.disabled = true; btn.textContent = 'Scanning…';
   try {
@@ -751,6 +833,7 @@ function build(){
 
   const name = $('netname').value.trim(), url = $('url').value.trim(), photo = $('photo').value.trim();
   const devices = $('devices').value.trim();
+  const spaces = parseSpaces();
   const devList = devices ? devices.split(/[;\n]+/).map(d => d.trim()).filter(Boolean) : [];
   const C = {}, SRC = {};
   ROLES.forEach(r => {
@@ -804,6 +887,24 @@ function build(){
       <td>${SRC[r.key] ? `<span class="pill src">${SRC[r.key]}</span>` : ''}</td>
     </tr>`).join('');
 
+  const spaceRows = spaces.map(s => {
+    if(!s.hex) return `<tr><td class="muted">${esc(s.group)}</td><td>${esc(s.name)}</td><td colspan="3" class="muted">No valid color. Add a #hex value after the name.</td></tr>`;
+    const icon = bestText(s.hex), r = ratio(icon, s.hex), ok = r >= 3;
+    const fix = ok ? null : fixFor(s.hex, icon, 3);
+    return `<tr>
+      <td class="muted">${esc(s.group)}</td>
+      <td>${esc(s.name)}</td>
+      <td><span class="dot" style="background:${s.hex}"></span>${s.hex}</td>
+      <td><span class="dot" style="background:${icon}"></span>${icon} <span class="muted">${r.toFixed(2)}:1</span> ${ok ? '<span class="pill ok">pass</span>' : '<span class="pill bad">fail</span>'}</td>
+      <td>${ok ? '<span class="muted">no change needed</span>' : (fix ? `change to <strong>${fix}</strong>` : '<span class="pill bad">no fix found</span>')}</td>
+    </tr>`;
+  }).join('');
+  const spacesBlock = spaces.length ? `<section class="card">
+      <h2>Spaces</h2>
+      <table><tr><th>Group</th><th>Space</th><th>Color</th><th>Icon on color</th><th>Suggestion</th></tr>${spaceRows}</table>
+      <p class="muted" style="margin-top:10px">Each space uses its color for the logo tile, tall banner desktop and mobile, thin banner and primary image.</p>
+    </section>` : '';
+
   const logoImg = logoDataUrl ? `<img src="${logoDataUrl}" alt="logo" style="max-height:44px;max-width:180px">` : '';
   const preview = `
     <div class="preview">
@@ -853,6 +954,7 @@ function build(){
     network: name || null, source: url || null,
     primitive: prim, semantic: sem,
     gradients: Object.fromEntries(gradDefs.map(g => [g.name.toLowerCase().replace(/[^a-z]+/g,'-').replace(/^-|-$/g,''), g.css])),
+    spaces: spaces.map(s => ({ group: s.group || null, name: s.name, color: s.hex })),
     note: 'Logo sits outside tokens. Fonts are fixed by Mighty.'
   };
   const tokensText = JSON.stringify(tokens, null, 2);
@@ -863,6 +965,7 @@ function build(){
   ROLES.forEach(r => { if(!C[r.key]) miss.push('Color: ' + r.full); });
   if(!url) miss.push('Network address (source)');
   if(!photo) miss.push('Photo style');
+  spaces.forEach(s => { if(!s.hex) miss.push('Space color for "' + s.name + '" (use #hex)'); });
 
   $('out').innerHTML = `${onlyUrl ? '<section class="card" style="border-color:#6d5efc"><h2>Only the address is saved</h2><p class="muted">This tool does not read websites. Add a logo or brand colors, or send the address to Claude in chat: it will scan the site and fill these in for you.</p></section>' : ''}${todoHtml}
     <section class="card">
@@ -875,6 +978,8 @@ function build(){
       <h2>Logo on Mighty backgrounds</h2>
       ${logoBlock}
     </section>
+
+    ${spacesBlock}
 
     <section class="card">
       <h2>Color roles</h2>
@@ -900,6 +1005,7 @@ function build(){
 
     <section class="card">
       <h2>Photo style</h2>
+      <p class="muted">Mighty rule: no AI-generated images, including generated people.</p>
       <p>${photo ? esc(photo) : '<span class="muted">Not provided.</span>'}</p>
         ${photo ? '<p class="hint" style="margin-top:8px">Source: entered by you. Verify before use.</p>' : ''}
       ${devices ? '<h2 style="margin-top:18px">Graphic devices</h2><ul>' + devList.map(d => '<li>' + esc(d) + '</li>').join('') + '</ul>' : ''}
