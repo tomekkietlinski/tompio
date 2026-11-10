@@ -876,6 +876,29 @@ function stockTagsBlock(stats, d){
 }
 
 /* ---------- przykładowe copy na banery z tekstów strony ---------- */
+/* Renders banner sets (headline, subheadline, cta, angle) with a copy button each. */
+function renderBanners(list){
+  const out = $('aiOut');
+  out.innerHTML = '<div class="copy-grid">' + list.map((x, i) => `
+    <div class="copy-ex">
+      <div class="copy-banner" style="background:${window._bannerBg || '#9aa3b2'};color:${bestText(window._bannerBg || '#9aa3b2')}">
+        <div class="copy-head">${esc(x.headline || '')}</div>
+        <div class="copy-sub">${esc(x.subheadline || '')}</div>
+        ${x.cta ? `<span class="copy-cta" style="background:${window._btnBg || '#9aa3b2'};color:${WHITE}">${esc(x.cta)}</span>` : ''}
+      </div>
+      <div class="copy-actions"><span class="muted">${esc(x.angle || '')}</span> <button class="mini" data-ai-copy="${i}">Copy text</button></div>
+    </div>`).join('') + '</div>';
+  window._aiCopy = list.map(x => [x.headline, x.subheadline, x.cta].filter(Boolean).join('\n'));
+}
+/* Parses pasted blocks: blank line between sets; lines = [Angle:] headline, subheadline, button. */
+function parsePasted(text){
+  return text.split(/\n\s*\n/).map(b => b.split('\n').map(l => l.trim()).filter(Boolean)).filter(l => l.length)
+    .map(lines => {
+      let angle = '';
+      if(/^angle:/i.test(lines[0])){ angle = lines.shift().replace(/^angle:\s*/i, ''); }
+      return { angle, headline: lines[0] || '', subheadline: lines[1] || '', cta: lines[2] || '' };
+    }).filter(x => x.headline);
+}
 /* Claude proposes banner copy from what the site says. Needs the Claude (artifact) version: the GitHub copy cannot ask Claude. */
 async function suggestBannerCopy(){
   const msg = $('aiMsg'), out = $('aiOut'), btn = $('aiBtn');
@@ -905,16 +928,7 @@ ${JSON.stringify(facts, null, 2)}`;
   try {
     const res = await sample.json(prompt);
     msg.textContent = res.about ? 'About the site: ' + res.about : 'Suggestions below. Check the wording before use.';
-    out.innerHTML = '<div class="copy-grid">' + (res.banners || []).map((x, i) => `
-      <div class="copy-ex">
-        <div class="copy-banner" style="background:${window._bannerBg || '#9aa3b2'};color:${bestText(window._bannerBg || '#9aa3b2')}">
-          <div class="copy-head">${esc(x.headline || '')}</div>
-          <div class="copy-sub">${esc(x.subheadline || '')}</div>
-          ${x.cta ? `<span class="copy-cta" style="background:${window._btnBg || '#9aa3b2'};color:${WHITE}">${esc(x.cta)}</span>` : ''}
-        </div>
-        <div class="copy-actions"><span class="muted">${esc(x.angle || '')}</span> <button class="mini" data-ai-copy="${i}">Copy text</button></div>
-      </div>`).join('') + '</div>';
-    window._aiCopy = (res.banners || []).map(x => [x.headline, x.subheadline, x.cta].filter(Boolean).join('\n'));
+    renderBanners(res.banners || []);
   } catch(e){
     msg.textContent = e && e.code === 'not_granted' ? 'Allow Claude in the page to use this.' : 'Could not get suggestions. Try again.';
   } finally { btn.disabled = false; }
@@ -922,6 +936,11 @@ ${JSON.stringify(facts, null, 2)}`;
 document.addEventListener('click', e => {
   const t = e.target;
   if(t.id === 'aiBtn') suggestBannerCopy();
+  if(t.id === 'pasteBtn'){
+    const list = parsePasted($('pasteCopy').value);
+    $('aiMsg').textContent = list.length ? 'Your sets, ready to copy.' : 'Nothing to show: check the format.';
+    if(list.length) renderBanners(list);
+  }
   if(t.dataset && t.dataset.aiCopy !== undefined){
     const txt = (window._aiCopy || [])[+t.dataset.aiCopy] || '';
     navigator.clipboard.writeText(txt).then(() => { t.textContent = 'Copied'; }).catch(() => {});
@@ -988,6 +1007,29 @@ function bannerCopyBlock(C){
     ${(d.sections || []).length ? '' : '<p class="muted"><strong>Section subheadlines are missing from this scan.</strong> Redeploy the Worker code (worker-page) and scan again to get them.</p>'}
     <div class="copy-grid">${cards}</div>
     <div style="margin-top:14px"><button class="mini" id="aiBtn">Suggest with Claude</button> <span class="muted" id="aiMsg">Reads the site's text and proposes banners about what it offers. Runs on your Claude account; works in the Claude version of this page.</span></div>
+    <details style="margin-top:14px"><summary class="muted" style="cursor:pointer">Paste your own banner sets</summary>
+      <p class="muted" style="margin:8px 0">One set per block, separated by a blank line. Line 1 headline, line 2 subheadline, line 3 button text. Optional: a line starting with “Angle:” first.</p>
+      <textarea id="pasteCopy" rows="12" style="width:100%;font:inherit;font-size:13px;padding:10px;border:1px solid var(--line);border-radius:8px">Angle: Problem
+What if you don't have to do this alone?
+Connect with fellow survivors, hear their stories, and share your own.
+Join Our Community
+
+Angle: Belonging
+Connect with someone like you.
+A safe place where every person touched by trauma has a voice.
+Join Our Community
+
+Angle: Stories
+We give you the mic first.
+Share stories, not statistics, with a global network of trauma survivors.
+Share your story
+
+Angle: Support
+See your support make an impact.
+Choose the amount you wish to give and receive updates on your impact.
+Support Genyus Foundation</textarea>
+      <div style="margin-top:8px"><button class="mini" id="pasteBtn">Show these banners</button></div>
+    </details>
     <div id="aiOut"></div>
   </section>`;
 }
@@ -1136,6 +1178,12 @@ async function scanSite(){
     if(!r.ok) throw new Error(d.hint || d.error || ('HTTP ' + r.status));
     await showScan(d);
     setMsg('Scan done. Check the results below.', true);
+    // Banner copy proposed automatically: by the Worker (Workers AI) if it is set up, else by Claude in the Claude version
+    const sg = d.suggestions;
+    if(sg && sg.banners && sg.banners.length && $('aiOut')){
+      renderBanners(sg.banners);
+      if($('aiMsg')) $('aiMsg').textContent = 'About the site: ' + (sg.about || 'proposed from the site text. Check the wording before use.');
+    } else if(window.claude && $('aiBtn')) suggestBannerCopy();
   } catch(e){
     setMsg('Scan failed (' + e.message + '). You can still enter colors by hand.');
   } finally {
