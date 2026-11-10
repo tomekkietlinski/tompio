@@ -280,7 +280,7 @@ const ROLES = [
   {key:'links',   full:'Links & Active Icons'}
 ];
 const DEFAULT_DROP = '<strong>Drop a logo here</strong><div class="hint">or click to choose a PNG, JPG or SVG</div>';
-let logoDataUrl = null, logoRoles = null, msgTimer = null, motifUris = [];
+let logoDataUrl = null, logoRoles = null, msgTimer = null, motifUris = [], logoPalette = null;
 
 /* ---------- helpers ---------- */
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -511,7 +511,7 @@ async function applyLogos(urls){
     const lists = await Promise.all(logoDataUrls.map(u => extractPalette(u).catch(() => [])));
     const merged = mergePalettes(lists);
     if(!merged.length) throw new Error('empty');
-    logoRoles = pickRoles(merged);
+    logoRoles = pickRoles(merged); logoPalette = merged;
     renderPalette(logoRoles.palette);
     fillFromLogo();
   } catch(e){
@@ -870,6 +870,15 @@ function stockTagsBlock(stats, d){
 }
 
 /* ---------- przykładowe copy na banery z tekstów strony ---------- */
+function unent(s){ const t = document.createElement('textarea'); t.innerHTML = s || ''; return t.value; }
+/* Share of the logo's pixels that stay readable (3:1) on a given colour. */
+function logoShare(hex){
+  if(!logoPalette || !logoPalette.length) return 1;
+  const tot = logoPalette.reduce((s, c) => s + c.n, 0);
+  const ok = logoPalette.reduce((s, c) => s + (ratio(c.hex, hex) >= 3 ? c.n : 0), 0);
+  return tot ? ok / tot : 1;
+}
+const copyKey = t => (t || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 function cutText(s, n){
   s = (s || '').trim();
   if(s.length <= n) return s;
@@ -879,16 +888,29 @@ function cutText(s, n){
 function bannerCopyBlock(C){
   const d = window._scan;
   if(!d) return '';
-  const h = d.headings || { h1: [], h2: [] };
-  const title = d.og_title || d.title || '';
-  const desc = d.description || '';
-  const ctas = d.cta_texts || [];
-  const h1 = h.h1[0] || title, h2 = h.h2[0] || '';
-  const ex = [
-    { head: h1, sub: cutText(desc || h.h2[1] || '', 110), cta: ctas[0] || '' },
-    { head: h2 || title, sub: cutText(desc || h.h1[1] || '', 110), cta: ctas[1] || ctas[0] || '' },
-    { head: title, sub: cutText(h.h2[0] || '', 110), cta: ctas[2] || ctas[0] || '' },
-  ].filter((x, i) => i < 2 ? !!x.head : (x.head && x.head !== h1 && x.head !== h2));
+  const h = { h1: (d.headings?.h1 || []).map(unent), h2: (d.headings?.h2 || []).map(unent) };
+  const title = unent(d.og_title || d.title || '');
+  const desc = unent(d.description || '');
+  const ctas = (d.cta_texts || []).map(unent);
+  const sections = (d.sections || []).map(s => ({ h: unent(s.h), sub: unent(s.sub) }));
+  const h1 = h.h1[0] || title;
+  // Hero first (page heading + description), then each section's heading with its subheadline.
+  const cands = [
+    { head: h1, sub: desc },
+    ...sections.map(s => ({ head: s.h, sub: s.sub })),
+    ...h.h2.map(t => ({ head: t, sub: '' })),
+  ];
+  const used = new Set(), ex = [];
+  for (const c of cands) {
+    if (ex.length >= 4) break;
+    const head = (c.head || '').trim();
+    if (!head || used.has(copyKey(head))) continue;
+    used.add(copyKey(head));
+    let sub = cutText(c.sub || '', 110);
+    if (sub && used.has(copyKey(sub))) sub = '';
+    if (sub) used.add(copyKey(sub));
+    ex.push({ head, sub, cta: ctas[ex.length] || ctas[0] || '' });
+  }
   if(!ex.length) return `<section class="card"><h2>Banner copy</h2><p class="muted">The site gave no headings or description. Scan the address first, or write the copy by hand.</p></section>`;
   window._copyEx = ex.map(x => [x.head, x.sub, x.cta].filter(Boolean).join('\n'));
   const bg = C.header || '#9aa3b2', fg = bestText(bg);
@@ -1136,23 +1158,38 @@ function build(){
       </div>
     </div>`;
 
+  // Header tile: if most of the logo would vanish on the header colour, show it on a white plate and say so.
+  const headerLow = !!(C.header && logoPalette && logoShare(C.header) < 0.2);
   const stages = [
     {bg: LIGHT_STAGE, cap: 'Light mode — default background'},
-    {bg: C.header || fallback, cap: 'Light mode — header color'},
+    {bg: C.header || fallback, cap: 'Light mode — header color' + (headerLow ? ' · low contrast' : ''), plate: headerLow},
     {bg: DARK_STAGE, cap: 'Dark mode — default background'}
   ];
   const logoBlock = logoDataUrls.length
-    ? logoDataUrls.map((u, i) => `<div class="logos" style="margin-bottom:12px">${stages.map(st => `<div class="logotile"><div class="stage" style="background:${st.bg}"><img src="${u}" alt="logo ${i+1}"></div><div class="cap">${esc(st.cap)}${logoDataUrls.length > 1 ? ' · logo ' + (i+1) : ''}</div></div>`).join('')}</div>`).join('')
+    ? logoDataUrls.map((u, i) => `<div class="logos" style="margin-bottom:12px">${stages.map(st => `<div class="logotile"><div class="stage" style="background:${st.bg}"><img src="${u}" alt="logo ${i+1}" style="${st.plate ? 'background:#fff;padding:8px;border-radius:8px;' : ''}"></div><div class="cap">${esc(st.cap)}${logoDataUrls.length > 1 ? ' · logo ' + (i+1) : ''}</div></div>`).join('')}</div>`).join('')
+      + (headerLow
+        ? `<p class="muted" style="margin-top:10px"><strong>Action needed:</strong> on the header colour the logo is hard to see (shown above on a white plate). Ask the client for a reversed, light version of the logo for header use, or change the header colour.</p>`
+        : '')
       + `<p class="muted" style="margin-top:10px">Logos are exempt from contrast rules, so judge these by eye. If the logo disappears on any tile, that variant is missing from the client's material.</p>`
     : '<p class="muted">No logo in this styleguide.</p>';
   const copyBlock = bannerCopyBlock(C);
 
+  /* Gradients use the main colour and its nearby steps (200–600), never the extremes or a
+     blend of two different hues (blue + yellow turns brown in the middle). */
+  const lin = (a, b) => `linear-gradient(135deg, ${a} 0%, ${b} 100%)`;
+  const hueGap = (a, b) => { const d = Math.abs(hexToHsl(a)[0] - hexToHsl(b)[0]) % 360; return Math.min(d, 360 - d); };
   const gradDefs = [];
-  if(C.header && btnShown) gradDefs.push({name:'Header → Buttons', css:`linear-gradient(135deg, ${C.header} 0%, ${btnShown} 100%)`});
-  if(C.header)              gradDefs.push({name:'Header depth', css:`linear-gradient(135deg, ${C.header} 0%, ${mix(C.header, WHITE, 0.35)} 100%)`});
-  if(btnShown && C.links)  gradDefs.push({name:'Buttons → Links', css:`linear-gradient(135deg, ${btnShown} 0%, ${C.links} 100%)`});
-  if(btnShown)             gradDefs.push({name:'Buttons depth', css:`linear-gradient(135deg, ${btnShown} 0%, ${mix(btnShown, WHITE, 0.35)} 100%)`});
-  if(C.header && C.links && C.header !== C.links) gradDefs.push({name:'Header → Links', css:`linear-gradient(135deg, ${C.header} 0%, ${C.links} 100%)`});
+  if(C.header){
+    const sh = scale(C.header);
+    gradDefs.push({name:'Header light', css: lin(sh['400'], sh['200'])});
+    gradDefs.push({name:'Header deep', css: lin(sh['400'], sh['600'])});
+  }
+  if(C.buttons){ // brand colour, not the white-text shade (that one is darkened and turns brown)
+    const sb = scale(C.buttons);
+    gradDefs.push({name:'Buttons light', css: lin(sb['200'], sb['400'])});
+  }
+  if(C.header && C.links && hueGap(C.header, C.links) < 40) gradDefs.push({name:'Header → Links', css: lin(C.header, C.links)});
+  if(C.buttons && C.links && hueGap(C.buttons, C.links) < 40) gradDefs.push({name:'Buttons → Links', css: lin(C.buttons, C.links)});
   const gradBlock = gradDefs.length
     ? `<div class="grads">${gradDefs.map(g => `<div class="grad" data-css="${esc(g.css)}" title="Click to copy the CSS"><div class="fill" style="background:${g.css}"></div><div class="cap"><strong>${esc(g.name)}</strong><br>${esc(g.css)}</div></div>`).join('')}</div>
        <p class="muted" style="margin-top:10px">For tall banners and primary images. Click a tile to copy its CSS.</p>`
