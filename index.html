@@ -27,6 +27,9 @@ main{max-width:1060px;margin:0 auto;padding:36px 18px 60px}
 .card h2{font-size:15px;margin:0 0 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .badge{font-size:11px;background:#eef0ff;color:var(--accent);border-radius:99px;padding:2px 9px;font-weight:600}
 .badge.done{background:#e3f7ee;color:var(--ok)}
+.badge.warn{background:#fde8c8;color:#8a4b00;font-size:12px;padding:4px 11px}
+.alert{border:1px solid #f3c77a;background:#fff7e6;border-radius:12px;padding:12px 14px;margin-top:12px;color:#5c3700;font-size:14px;line-height:1.5}
+.alert strong{display:inline-block;margin-right:6px}
 .hint{font-size:12px;color:var(--muted);margin:6px 0 0}
 input[type=text],textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fbfbfd}
 input[type=text]:focus,textarea:focus{outline:none;border-color:var(--accent);background:#fff}
@@ -400,11 +403,14 @@ function far(a, b){ const p = rgb(a), q = rgb(b); return Math.hypot(p[0]-q[0], p
 function pickRoles(list){
   const total = list.reduce((s,x) => s + x.n, 0);
   const cand = list.filter(x => x.n/total > 0.004).map(x => ({...x, sat: sat(x.hex), lum: lum(x.hex)}));
-  const darks = cand.filter(x => x.lum < 0.2);
+  const darks = cand.filter(x => x.lum < 0.2).sort((a, b) => b.n * (1 - 0.7 * b.sat) - a.n * (1 - 0.7 * a.sat));
   const header = (darks[0] || cand[0] || {}).hex || null;
   const accents = cand.filter(x => x.sat > 0.3 && x.hex !== header && (!header || far(x.hex, header) > 60));
-  const buttons = (accents[0] || cand.find(x => x.hex !== header && (!header || far(x.hex, header) > 60)) || {}).hex || null;
-  const links = (accents.find(x => x.hex !== buttons && (!buttons || far(x.hex, buttons) > 60)) || {}).hex || null;
+  // Dark brownish shades are usually anti-aliasing between two logo colours (yellow + blue → brown), so they score low.
+  const score = x => x.n * x.sat * (x.lum >= 0.2 ? 1 : 0.15);
+  const ranked = accents.slice().sort((a, b) => score(b) - score(a));
+  const buttons = (ranked[0] || cand.find(x => x.hex !== header && (!header || far(x.hex, header) > 60)) || {}).hex || null;
+  const links = (ranked.find(x => x.hex !== buttons && (!buttons || far(x.hex, buttons) > 60)) || {}).hex || null;
   return {header, buttons, links, palette: cand.slice(0, 8).map(x => x.hex)};
 }
 
@@ -870,6 +876,57 @@ function stockTagsBlock(stats, d){
 }
 
 /* ---------- przykładowe copy na banery z tekstów strony ---------- */
+/* Claude proposes banner copy from what the site says. Needs the Claude (artifact) version: the GitHub copy cannot ask Claude. */
+async function suggestBannerCopy(){
+  const msg = $('aiMsg'), out = $('aiOut'), btn = $('aiBtn');
+  const d = window._scan;
+  if(!d){ msg.textContent = 'Scan the address first.'; return; }
+  let sample = null;
+  try { sample = window.claude && window.claude.use ? await window.claude.use('sample') : null; } catch(e){ sample = null; }
+  if(!sample){ msg.textContent = 'Not available in this copy. Open the Claude version of the builder to use suggestions.'; return; }
+  const facts = {
+    title: unent(d.og_title || d.title || ''),
+    description: unent(d.description || d.og_description || ''),
+    h1: (d.headings?.h1 || []).map(unent),
+    h2: (d.headings?.h2 || []).map(unent),
+    sections: (d.sections || []).map(s => ({ heading: unent(s.h), text: unent(s.sub) })),
+    paragraphs: (d.paragraphs || []).map(unent).slice(0, 12),
+    buttons: (d.cta_texts || []).map(unent),
+  };
+  const prompt = `You write banner copy in English for the community page of the business described by this website data.
+First work out what the site offers, who it is for and what problem it solves. Use only facts that are in the data: no invented claims, numbers, prices or testimonials.
+Then write 4 banner sets. Each set has a different angle (for example: the offer, the audience's problem, the community, the outcome).
+Limits: headline up to 8 words, subheadline up to 20 words, button text up to 3 words.
+Return JSON only, in this shape: {"about": "one sentence on what the site is about", "banners": [{"angle": "...", "headline": "...", "subheadline": "...", "cta": "..."}]}
+
+WEBSITE DATA:
+${JSON.stringify(facts, null, 2)}`;
+  btn.disabled = true; msg.textContent = 'Thinking…'; out.innerHTML = '';
+  try {
+    const res = await sample.json(prompt);
+    msg.textContent = res.about ? 'About the site: ' + res.about : 'Suggestions below. Check the wording before use.';
+    out.innerHTML = '<div class="copy-grid">' + (res.banners || []).map((x, i) => `
+      <div class="copy-ex">
+        <div class="copy-banner" style="background:${window._bannerBg || '#9aa3b2'};color:${bestText(window._bannerBg || '#9aa3b2')}">
+          <div class="copy-head">${esc(x.headline || '')}</div>
+          <div class="copy-sub">${esc(x.subheadline || '')}</div>
+          ${x.cta ? `<span class="copy-cta" style="background:${window._btnBg || '#9aa3b2'};color:${WHITE}">${esc(x.cta)}</span>` : ''}
+        </div>
+        <div class="copy-actions"><span class="muted">${esc(x.angle || '')}</span> <button class="mini" data-ai-copy="${i}">Copy text</button></div>
+      </div>`).join('') + '</div>';
+    window._aiCopy = (res.banners || []).map(x => [x.headline, x.subheadline, x.cta].filter(Boolean).join('\n'));
+  } catch(e){
+    msg.textContent = e && e.code === 'not_granted' ? 'Allow Claude in the page to use this.' : 'Could not get suggestions. Try again.';
+  } finally { btn.disabled = false; }
+}
+document.addEventListener('click', e => {
+  const t = e.target;
+  if(t.id === 'aiBtn') suggestBannerCopy();
+  if(t.dataset && t.dataset.aiCopy !== undefined){
+    const txt = (window._aiCopy || [])[+t.dataset.aiCopy] || '';
+    navigator.clipboard.writeText(txt).then(() => { t.textContent = 'Copied'; }).catch(() => {});
+  }
+});
 function unent(s){ const t = document.createElement('textarea'); t.innerHTML = s || ''; return t.value; }
 /* Share of the logo's pixels that stay readable (3:1) on a given colour. */
 function logoShare(hex){
@@ -915,6 +972,7 @@ function bannerCopyBlock(C){
   window._copyEx = ex.map(x => [x.head, x.sub, x.cta].filter(Boolean).join('\n'));
   const bg = C.header || '#9aa3b2', fg = bestText(bg);
   const btnBg = buttonFor(C.buttons, C.header) || '#9aa3b2', btnFg = WHITE;
+  window._bannerBg = bg; window._btnBg = btnBg;
   const cards = ex.map((x, i) => `
     <div class="copy-ex">
       <div class="copy-banner" style="background:${bg};color:${fg}">
@@ -927,7 +985,10 @@ function bannerCopyBlock(C){
   return `<section class="card">
     <h2>Banner copy <span class="badge done">from the site</span></h2>
     <p class="muted">Built from the site's own headings, description and button text. Check the wording and language before use.</p>
+    ${(d.sections || []).length ? '' : '<p class="muted"><strong>Section subheadlines are missing from this scan.</strong> Redeploy the Worker code (worker-page) and scan again to get them.</p>'}
     <div class="copy-grid">${cards}</div>
+    <div style="margin-top:14px"><button class="mini" id="aiBtn">Suggest with Claude</button> <span class="muted" id="aiMsg">Reads the site's text and proposes banners about what it offers. Runs on your Claude account; works in the Claude version of this page.</span></div>
+    <div id="aiOut"></div>
   </section>`;
 }
 
@@ -1168,7 +1229,7 @@ function build(){
   const logoBlock = logoDataUrls.length
     ? logoDataUrls.map((u, i) => `<div class="logos" style="margin-bottom:12px">${stages.map(st => `<div class="logotile"><div class="stage" style="background:${st.bg}"><img src="${u}" alt="logo ${i+1}" style="${st.plate ? 'background:#fff;padding:8px;border-radius:8px;' : ''}"></div><div class="cap">${esc(st.cap)}${logoDataUrls.length > 1 ? ' · logo ' + (i+1) : ''}</div></div>`).join('')}</div>`).join('')
       + (headerLow
-        ? `<p class="muted" style="margin-top:10px"><strong>Action needed:</strong> on the header colour the logo is hard to see (shown above on a white plate). Ask the client for a reversed, light version of the logo for header use, or change the header colour.</p>`
+        ? `<div class="alert"><span class="badge warn">Action needed</span><br>On the header colour the logo is hard to see (shown above on a white plate). Ask the client for a reversed, light version of the logo for header use, or change the header colour.</div>`
         : '')
       + `<p class="muted" style="margin-top:10px">Logos are exempt from contrast rules, so judge these by eye. If the logo disappears on any tile, that variant is missing from the client's material.</p>`
     : '<p class="muted">No logo in this styleguide.</p>';
