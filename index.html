@@ -80,6 +80,27 @@ th{font-size:12px;color:var(--muted);font-weight:600}
 .scan-cell .mini{margin-top:6px;width:100%}
 .scan-photos{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:8px}
 .scan-photos img{width:100%;height:170px;object-fit:cover;border-radius:8px;display:block;background:#f4f5f8}
+.photo-split{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:start;margin-top:12px}
+.photo-split .tag-panel{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fafbfc}
+.tag-title{font-weight:700;font-size:15px;margin-bottom:4px}
+.tag-group{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:12px 0 6px}
+.tag-row{display:flex;flex-wrap:wrap;gap:6px}
+.tchip{padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.tchip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.tag-add{display:flex;gap:8px;margin:12px 0 0}
+.tag-input{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px}
+.tag-query{font-size:13px;padding:10px 12px;border-radius:10px;background:#f4f5f8;margin:12px 0 8px;word-break:break-word}
+.tag-actions{display:flex;flex-wrap:wrap;gap:6px}
+.tag-actions a.mini{text-decoration:none;color:var(--ink);display:inline-block}
+.mini.disabled{opacity:.45;pointer-events:none}
+.grid .tag-panel{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.12)}
+.grid .tag-title,.grid .tag-input,.grid .tag-query,.grid .tag-actions a.mini{color:#e8ecf3}
+.grid .tag-input{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.16)}
+.grid .tag-query{background:rgba(255,255,255,.06)}
+.grid .tag-group{color:#9aa4b5}
+.grid .tchip{background:rgba(255,255,255,.06);color:#e8ecf3;border-color:rgba(255,255,255,.18)}
+.grid .tchip.on{background:#b4e33d;border-color:#b4e33d;color:#08291c}
+@media (max-width:720px){.photo-split{grid-template-columns:1fr}}
 .scan-cap{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.35}
 @media(max-width:600px){.logos{grid-template-columns:1fr}}
 .logotile{border-radius:12px;border:1px solid var(--line);overflow:hidden}
@@ -672,6 +693,7 @@ const STOP_WORDS = new Set(('the and for with from your our this that are you wa
   + 'about into over under also just more best top how what when where who will can our their there here its it\'s').split(' '));
 const STOP_PL = new Set('jest się nie dla jak czy oraz lub przez na do od po we za ze to ten ta te jego jej który która które są być'.split(' '));
 function toneTags(stats){
+  if(!stats.length) return [];
   const avg = k => stats.reduce((a, s) => a + s[k], 0) / stats.length;
   const t = [];
   const b = avg('bright'), s = avg('sat'), w = avg('warm'), g = avg('gray'), c = avg('contrast');
@@ -696,32 +718,102 @@ function subjectTags(d){
 }
 function stockTagsBlock(stats, d){
   const tone = toneTags(stats), subj = subjectTags(d);
-  const wrap = el('div', '', 'stock-tags');
-  wrap.style.marginTop = '14px';
-  wrap.appendChild(el('div', 'Stock search tags', 'hint'));
-  wrap.appendChild(el('div', subj.length
-    ? 'Subject words come from the site\'s own image descriptions (alt text), keywords and title. Tone comes from the sample photos.'
-    : 'No subject words: the site gives no image descriptions (alt text). Tone tags still apply; add subject words yourself.', 'hint'));
-  const row = el('div', '', 'scan-row');
-  [...subj.map(t => ({ t, kind: 'subject' })), ...tone.map(t => ({ t, kind: 'tone' }))].forEach(({ t, kind }) => {
-    const chip = el('span', t, 'tag');
-    chip.title = kind === 'subject' ? 'Subject (from site text)' : 'Tone (from pixels)';
-    chip.style.cursor = 'pointer';
-    chip.addEventListener('click', () => copyText(t, '"' + t + '" copied.'));
-    row.appendChild(chip);
+  const tags = [
+    ...subj.map(t => ({ t, g: 'subject' })),
+    ...tone.map(t => ({ t, g: 'mood' }))
+  ];
+  const selected = new Set([...subj.slice(0, 4), ...tone.slice(0, 3)]);
+  const panel = el('div', '', 'tag-panel');
+  panel.appendChild(el('div', 'Stock search tags', 'tag-title'));
+  panel.appendChild(el('div', subj.length
+    ? 'Click tags to build the search. Subject tags come from the site\'s image descriptions; mood tags come from the sample photos.'
+    : 'The site gives no image descriptions, so only mood tags are here. Add subject words below.', 'hint'));
+  const chipsBox = el('div');
+  panel.appendChild(chipsBox);
+
+  const addRow = el('div', '', 'tag-add');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = 'Add your own tag, e.g. kids, family';
+  input.className = 'tag-input';
+  const addBtn = el('button', 'Add', 'mini');
+  addRow.appendChild(input);
+  addRow.appendChild(addBtn);
+  panel.appendChild(addRow);
+
+  const query = el('div', '', 'tag-query');
+  panel.appendChild(query);
+  const actions = el('div', '', 'tag-actions');
+  const uns = document.createElement('a');
+  uns.textContent = 'Search Unsplash'; uns.className = 'mini'; uns.target = '_blank'; uns.rel = 'noopener';
+  const pex = document.createElement('a');
+  pex.textContent = 'Search Pexels'; pex.className = 'mini'; pex.target = '_blank'; pex.rel = 'noopener';
+  const cp = el('button', 'Copy search', 'mini');
+  actions.appendChild(uns);
+  actions.appendChild(pex);
+  actions.appendChild(cp);
+  panel.appendChild(actions);
+
+  const qstr = () => tags.filter(x => selected.has(x.t)).map(x => x.t).join(' ');
+  const refresh = () => {
+    const q = qstr();
+    query.textContent = q ? 'Search: ' + q : 'Select at least one tag.';
+    uns.href = q ? 'https://unsplash.com/s/photos/' + encodeURIComponent(q.replace(/\s+/g, '-')) : '#';
+    pex.href = q ? 'https://www.pexels.com/search/' + encodeURIComponent(q) + '/' : '#';
+    uns.classList.toggle('disabled', !q);
+    pex.classList.toggle('disabled', !q);
+  };
+  const render = () => {
+    chipsBox.innerHTML = '';
+    [['subject', 'Subject (from the site)'], ['mood', 'Mood (from the photos)'], ['custom', 'Your tags']].forEach(([g, title]) => {
+      const list = tags.filter(x => x.g === g);
+      if(!list.length) return;
+      chipsBox.appendChild(el('div', title, 'tag-group'));
+      const row = el('div', '', 'tag-row');
+      list.forEach(x => {
+        const c = el('button', x.t, 'tchip' + (selected.has(x.t) ? ' on' : ''));
+        c.type = 'button';
+        c.addEventListener('click', () => {
+          if(selected.has(x.t)) selected.delete(x.t); else selected.add(x.t);
+          render();
+        });
+        row.appendChild(c);
+      });
+      chipsBox.appendChild(row);
+    });
+    refresh();
+  };
+  const add = () => {
+    const v = input.value.trim().toLowerCase();
+    if(!v) return;
+    if(!tags.some(x => x.t === v)) tags.push({ t: v, g: 'custom' });
+    selected.add(v);
+    input.value = '';
+    render();
+  };
+  addBtn.addEventListener('click', add);
+  input.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); add(); } });
+  cp.addEventListener('click', () => {
+    const q = qstr();
+    if(q) copyText(q, 'Search copied. Paste it into Unsplash or Pexels.');
+    else setMsg('Select at least one tag first.');
   });
-  wrap.appendChild(row);
-  const q = [...subj.slice(0, 4), ...tone.slice(0, 3)].join(' ');
-  if(q){
-    const line = el('div', q, 'hint');
-    line.style.margin = '8px 0';
-    wrap.appendChild(line);
-    const b = el('button', 'Copy search', 'mini');
-    b.addEventListener('click', () => copyText(q, 'Search copied. Paste it into Unsplash or Pexels.'));
-    wrap.appendChild(b);
+
+  if((d.image_alts || []).length){
+    const det = document.createElement('details');
+    det.className = 'hint';
+    det.style.marginTop = '10px';
+    const sum = document.createElement('summary');
+    sum.textContent = 'Image descriptions used (' + d.image_alts.length + ')';
+    det.appendChild(sum);
+    const ul = document.createElement('ul');
+    d.image_alts.slice(0, 15).forEach(a => { const li = document.createElement('li'); li.textContent = a; ul.appendChild(li); });
+    det.appendChild(ul);
+    panel.appendChild(det);
   }
-  wrap.appendChild(el('div', 'Check the results by eye: a tag from alt text may not match what is in the photo.', 'hint'));
-  return wrap;
+  panel.appendChild(el('div', 'Check results by eye. A tag from a description can be wrong for a given photo.', 'hint'));
+  render();
+  return panel;
 }
 
 async function showScan(d){
@@ -781,6 +873,7 @@ async function showScan(d){
       .filter(s => s && s.w >= 200 && s.h >= 120).slice(0, 8);
     if(!stats.length){
       note.textContent = 'No usable photos found (too small or not loaded).';
+      box.appendChild(stockTagsBlock([], d));
     } else {
       const desc = describePhotos(stats) + ' (from site scan, verify visually)';
       note.textContent = 'Photo style (heuristic, check it visually): ' + describePhotos(stats);
@@ -792,9 +885,13 @@ async function showScan(d){
         cell.appendChild(el('div', describePhotos([s]), 'scan-cap'));
         grid.appendChild(cell);
       });
-      box.appendChild(grid);
-      box.appendChild(el('div', 'Check the samples above. If the description is wrong, edit the Photo style field below before building.', 'hint'));
-      box.appendChild(stockTagsBlock(stats, d));
+      const split = el('div', '', 'photo-split');
+      const left = el('div');
+      left.appendChild(grid);
+      left.appendChild(el('div', 'Check the samples above. If the description is wrong, edit the Photo style field below before building.', 'hint'));
+      split.appendChild(left);
+      split.appendChild(stockTagsBlock(stats, d));
+      box.appendChild(split);
       const b = el('button', 'Use this as photo style', 'mini');
       b.addEventListener('click', () => { $('photo').value = desc; $('photo').dataset.auto = '1'; update(); });
       box.appendChild(b);
