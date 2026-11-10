@@ -93,6 +93,12 @@ th{font-size:12px;color:var(--muted);font-weight:600}
 .tag-actions{display:flex;flex-wrap:wrap;gap:6px}
 .tag-actions a.mini{text-decoration:none;color:var(--ink);display:inline-block}
 .mini.disabled{opacity:.45;pointer-events:none}
+.copy-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:10px}
+.copy-banner{border-radius:12px;padding:18px;min-height:150px;display:flex;flex-direction:column;gap:8px}
+.copy-head{font-weight:800;font-size:20px;line-height:1.2}
+.copy-sub{font-size:14px;opacity:.92;line-height:1.4}
+.copy-cta{align-self:flex-start;margin-top:auto;padding:8px 14px;border-radius:999px;font-weight:700;font-size:13px}
+.copy-actions{margin-top:8px}
 .grid .tag-panel{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.12)}
 .grid .tag-title,.grid .tag-input,.grid .tag-query,.grid .tag-actions a.mini{color:#e8ecf3}
 .grid .tag-input{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.16)}
@@ -198,7 +204,7 @@ ul{margin:6px 0 0 18px;padding:0}
       <h2>Logo <span class="badge" id="b-logo">optional</span></h2>
       <p class="hint">Colors are sampled from the logo and fill empty color fields.</p>
       <label class="drop" id="drop">
-        <input type="file" id="logo" accept="image/*">
+        <input type="file" id="logo" accept="image/*" multiple>
         <div id="dropInner"><strong>Drop a logo here</strong><div class="hint">or click to choose a PNG, JPG or SVG</div></div>
       </label>
       <div class="palette" id="palette"></div>
@@ -242,11 +248,6 @@ ul{margin:6px 0 0 18px;padding:0}
       <div class="logos" id="mGrid" style="grid-template-columns:repeat(3,1fr)"></div>
     </section>
 
-    <section class="card">
-      <h2>Spaces <span class="badge" id="b-spaces">optional</span></h2>
-      <textarea id="spaces" placeholder="One per line: Group | Space name | #hex&#10;e.g. Start Here | Welcome, Sister | #3a6fc0"></textarea>
-      <p class="hint">Each space gets one color. Its logo tile, banners and primary image use it.</p>
-    </section>
   </div>
 
   <div class="actions no-print">
@@ -395,7 +396,6 @@ ROLES.forEach(r => {
 ['url','photo','netname','devices'].forEach(id => $(id).addEventListener('input', update));
 // ręczna zmiana opisu zdjęć blokuje nadpisanie przy kolejnym skanie
 $('photo').addEventListener('input', e => { if(e.isTrusted) e.target.dataset.auto = '0'; });
-$('spaces').addEventListener('input', () => { update(); if($('out').innerHTML) build(); });
 
 document.querySelectorAll('[data-swap]').forEach(b => {
   b.addEventListener('click', () => {
@@ -449,28 +449,51 @@ function renderPalette(list){
   });
   $('palHint').textContent = list.length ? 'Click a swatch to assign it to the next empty role, shift-click to copy the hex.' : '';
 }
-function handleLogo(f){
-  const rd = new FileReader();
-  rd.onload = async () => {
-    logoDataUrl = rd.result;
-    $('dropInner').innerHTML = '';
-    const img = new Image(); img.src = logoDataUrl; img.alt = 'logo';
-    $('dropInner').appendChild(img);
-    try {
-      logoRoles = pickRoles(await extractPalette(logoDataUrl));
-      renderPalette(logoRoles.palette);
-      fillFromLogo();
-      if($('out').innerHTML) build(); // keep the result in sync with the inputs
-    } catch(e){
-      logoRoles = null; $('palette').innerHTML = '';
-      $('palHint').textContent = 'Colors could not be read from this file (SVGs are often blocked). Enter hex codes manually.';
-    }
-    refresh();
-  };
-  rd.readAsDataURL(f);
+let logoDataUrls = [];
+function readDataUrl(f){
+  return new Promise((res, rej) => { const rd = new FileReader(); rd.onload = () => res(rd.result); rd.onerror = rej; rd.readAsDataURL(f); });
 }
+// Łączy palety z kilku logo: podobne odcienie scalane, sumowana częstotliwość
+function mergePalettes(lists){
+  const out = [];
+  lists.flat().sort((a, b) => b.n - a.n).forEach(c => {
+    const hit = out.find(o => far(o.hex, c.hex) < 30);
+    if(hit) hit.n += c.n; else out.push({ n: c.n, hex: c.hex });
+  });
+  return out.sort((a, b) => b.n - a.n);
+}
+async function applyLogos(urls){
+  logoDataUrls = urls.slice(0, 6);
+  logoDataUrl = logoDataUrls[0] || null;
+  if(!logoDataUrl){ resetLogo(); return; }
+  $('dropInner').innerHTML = '';
+  logoDataUrls.forEach(u => {
+    const img = new Image(); img.src = u; img.alt = 'logo';
+    img.style.cssText = 'height:44px;max-width:120px;object-fit:contain;margin:4px';
+    $('dropInner').appendChild(img);
+  });
+  try {
+    const lists = await Promise.all(logoDataUrls.map(u => extractPalette(u).catch(() => [])));
+    const merged = mergePalettes(lists);
+    if(!merged.length) throw new Error('empty');
+    logoRoles = pickRoles(merged);
+    renderPalette(logoRoles.palette);
+    fillFromLogo();
+  } catch(e){
+    logoRoles = null; $('palette').innerHTML = '';
+    $('palHint').textContent = 'Colors could not be read from these files (SVGs are often blocked). Enter hex codes manually.';
+  }
+  refresh();
+  if($('out').innerHTML) build();
+}
+async function handleLogos(files){
+  const list = [...files].filter(f => f.type.startsWith('image/')).slice(0, 6);
+  if(!list.length) return;
+  applyLogos(await Promise.all(list.map(readDataUrl)));
+}
+function handleLogo(f){ handleLogos([f]); }
 function resetLogo(){
-  logoDataUrl = null; logoRoles = null;
+  logoDataUrl = null; logoDataUrls = []; logoRoles = null;
   $('dropInner').innerHTML = DEFAULT_DROP;
   $('palette').innerHTML = ''; $('palHint').textContent = '';
   clearAuto();
@@ -478,8 +501,8 @@ function resetLogo(){
 const drop = $('drop');
 ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
 ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
-drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if(f) handleLogo(f); });
-$('logo').addEventListener('change', e => { if(e.target.files[0]) handleLogo(e.target.files[0]); });
+drop.addEventListener('drop', e => { if(e.dataTransfer.files.length) handleLogos(e.dataTransfer.files); });
+$('logo').addEventListener('change', e => { if(e.target.files.length) handleLogos(e.target.files); });
 
 function inputsCount(){
   return {
@@ -496,19 +519,6 @@ function update(){
   [['logo','b-logo'],['colors','b-colors'],['url','b-url'],['photo','b-photo']].forEach(([k,id]) => {
     $(id).textContent = c[k] ? 'added' : 'optional';
     $(id).className = 'badge' + (c[k] ? ' done' : '');
-  });
-  const sp = parseSpaces().length > 0;
-  $('b-spaces').textContent = sp ? 'added' : 'optional';
-  $('b-spaces').className = 'badge' + (sp ? ' done' : '');
-}
-
-/* ---------- spaces: "Group | Name | #hex" per line ---------- */
-function parseSpaces(){
-  const raw = $('spaces') ? $('spaces').value : '';
-  return raw.split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => {
-    const p = l.split('|').map(s => s.trim());
-    const hex = normHex(p[p.length - 1]);
-    return { group: p.length >= 3 ? p[0] : '', name: (p.length >= 3 ? p[1] : p[0]) || 'Unnamed', hex: hex || null };
   });
 }
 
@@ -537,20 +547,14 @@ function loadSaved(i){
   $('netname').value = item.name || '';
   $('url').value = item.url || '';
   $('photo').value = item.photo || '';
-  $('spaces').value = item.spaces || '';
   ROLES.forEach(r => {
     const el = $('c-'+r.key);
     el.value = (item.colors && item.colors[r.key]) || '';
     el.dataset.auto = '0';
     $('t-'+r.key).textContent = el.value ? 'saved' : '';
   });
-  if(item.logo){
-    logoDataUrl = item.logo;
-    $('dropInner').innerHTML = '';
-    const img = new Image(); img.src = logoDataUrl; img.alt = 'logo';
-    $('dropInner').appendChild(img);
-    extractPalette(logoDataUrl).then(l => { logoRoles = pickRoles(l); renderPalette(logoRoles.palette); }).catch(() => {});
-  } else resetLogo();
+  const urls = item.logos && item.logos.length ? item.logos : (item.logo ? [item.logo] : []);
+  if(urls.length) applyLogos(urls); else resetLogo();
   refresh();
   build();
   setMsg('Loaded "' + (item.name || 'network') + '".', true);
@@ -559,15 +563,15 @@ $('save').addEventListener('click', () => {
   const name = $('netname').value.trim();
   if(!name){ setMsg('Give the network a name before saving.'); $('netname').focus(); return; }
   const entry = {
-    name, url: $('url').value.trim(), photo: $('photo').value.trim(), spaces: $('spaces').value,
+    name, url: $('url').value.trim(), photo: $('photo').value.trim(),
     colors: Object.fromEntries(ROLES.map(r => [r.key, normHex($('c-'+r.key).value) || ''])),
-    logo: logoDataUrl
+    logo: logoDataUrl, logos: logoDataUrls
   };
   const list = readStore();
   const at = list.findIndex(x => x.name.toLowerCase() === name.toLowerCase());
   if(at > -1) list[at] = entry; else list.push(entry);
   if(writeStore(list)){ renderSaved(); setMsg('Saved "' + name + '".', true); return; }
-  const slim = {...entry, logo: null};
+  const slim = {...entry, logo: null, logos: []};
   if(at > -1) list[at] = slim; else list[list.length-1] = slim;
   if(writeStore(list)){ renderSaved(); setMsg('Saved "' + name + '" without the logo — the file was too large for browser storage.'); }
   else setMsg('Could not save: browser storage is unavailable or full.');
@@ -578,7 +582,7 @@ $('print').addEventListener('click', () => {
   window.print();
 });
 $('clear').addEventListener('click', () => {
-  ['c-header','c-buttons','c-links','url','photo','netname','devices','spaces'].forEach(id => $(id).value = '');
+  ['c-header','c-buttons','c-links','url','photo','netname','devices'].forEach(id => $(id).value = '');
   ROLES.forEach(r => { $('t-'+r.key).textContent = ''; $('s-'+r.key).style.background = 'transparent'; $('c-'+r.key).dataset.auto = '0'; });
   $('logo').value = ''; resetLogo(); motifUris = []; $('mGrid').innerHTML = '';
   $('out').innerHTML = ''; $('scanBox').innerHTML = ''; setMsg(''); update();
@@ -816,7 +820,48 @@ function stockTagsBlock(stats, d){
   return panel;
 }
 
+/* ---------- przykładowe copy na banery z tekstów strony ---------- */
+function cutText(s, n){
+  s = (s || '').trim();
+  if(s.length <= n) return s;
+  const c = s.slice(0, n), sp = c.lastIndexOf(' ');
+  return (sp > n * 0.6 ? c.slice(0, sp) : c) + '…';
+}
+function bannerCopyBlock(C){
+  const d = window._scan;
+  if(!d) return '';
+  const h = d.headings || { h1: [], h2: [] };
+  const title = d.og_title || d.title || '';
+  const desc = d.description || '';
+  const ctas = d.cta_texts || [];
+  const h1 = h.h1[0] || title, h2 = h.h2[0] || '';
+  const ex = [
+    { head: h1, sub: cutText(desc || h.h2[1] || '', 110), cta: ctas[0] || '' },
+    { head: h2 || title, sub: cutText(desc || h.h1[1] || '', 110), cta: ctas[1] || ctas[0] || '' },
+    { head: title, sub: cutText(h.h2[0] || '', 110), cta: ctas[2] || ctas[0] || '' },
+  ].filter((x, i) => i < 2 ? !!x.head : (x.head && x.head !== h1 && x.head !== h2));
+  if(!ex.length) return `<section class="card"><h2>Banner copy</h2><p class="muted">The site gave no headings or description. Scan the address first, or write the copy by hand.</p></section>`;
+  window._copyEx = ex.map(x => [x.head, x.sub, x.cta].filter(Boolean).join('\n'));
+  const bg = C.header || '#9aa3b2', fg = bestText(bg);
+  const btnBg = C.buttons || '#9aa3b2', btnFg = bestText(btnBg);
+  const cards = ex.map((x, i) => `
+    <div class="copy-ex">
+      <div class="copy-banner" style="background:${bg};color:${fg}">
+        <div class="copy-head">${esc(x.head)}</div>
+        ${x.sub ? `<div class="copy-sub">${esc(x.sub)}</div>` : ''}
+        ${x.cta ? `<span class="copy-cta" style="background:${btnBg};color:${btnFg}">${esc(x.cta)}</span>` : ''}
+      </div>
+      <div class="copy-actions"><button class="mini" data-copy-i="${i}">Copy text</button></div>
+    </div>`).join('');
+  return `<section class="card">
+    <h2>Banner copy <span class="badge done">from the site</span></h2>
+    <p class="muted">Built from the site's own headings, description and button text. Check the wording and language before use.</p>
+    <div class="copy-grid">${cards}</div>
+  </section>`;
+}
+
 async function showScan(d){
+  window._scan = d;
   const box = $('scanBox'); box.innerHTML = '';
   box.appendChild(el('div', 'Site scan: ' + (d.title || d.source || ''), 'scan-title'));
   (d.warnings || []).forEach(w => box.appendChild(el('div', '⚠ ' + w, 'hint')));
@@ -930,7 +975,6 @@ function build(){
 
   const name = $('netname').value.trim(), url = $('url').value.trim(), photo = $('photo').value.trim();
   const devices = $('devices').value.trim();
-  const spaces = parseSpaces();
   const devList = devices ? devices.split(/[;\n]+/).map(d => d.trim()).filter(Boolean) : [];
   const C = {}, SRC = {};
   ROLES.forEach(r => {
@@ -984,24 +1028,6 @@ function build(){
       <td>${SRC[r.key] ? `<span class="pill src">${SRC[r.key]}</span>` : ''}</td>
     </tr>`).join('');
 
-  const spaceRows = spaces.map(s => {
-    if(!s.hex) return `<tr><td class="muted">${esc(s.group)}</td><td>${esc(s.name)}</td><td colspan="3" class="muted">No valid color. Add a #hex value after the name.</td></tr>`;
-    const icon = bestText(s.hex), r = ratio(icon, s.hex), ok = r >= 3;
-    const fix = ok ? null : fixFor(s.hex, icon, 3);
-    return `<tr>
-      <td class="muted">${esc(s.group)}</td>
-      <td>${esc(s.name)}</td>
-      <td><span class="dot" style="background:${s.hex}"></span>${s.hex}</td>
-      <td><span class="dot" style="background:${icon}"></span>${icon} <span class="muted">${r.toFixed(2)}:1</span> ${ok ? '<span class="pill ok">pass</span>' : '<span class="pill bad">fail</span>'}</td>
-      <td>${ok ? '<span class="muted">no change needed</span>' : (fix ? `change to <strong>${fix}</strong>` : '<span class="pill bad">no fix found</span>')}</td>
-    </tr>`;
-  }).join('');
-  const spacesBlock = spaces.length ? `<section class="card">
-      <h2>Spaces</h2>
-      <table><tr><th>Group</th><th>Space</th><th>Color</th><th>Icon on color</th><th>Suggestion</th></tr>${spaceRows}</table>
-      <p class="muted" style="margin-top:10px">Each space uses its color for the logo tile, tall banner desktop and mobile, thin banner and primary image.</p>
-    </section>` : '';
-
   const logoImg = logoDataUrl ? `<img src="${logoDataUrl}" alt="logo" style="max-height:44px;max-width:180px">` : '';
   const preview = `
     <div class="preview">
@@ -1018,10 +1044,11 @@ function build(){
     {bg: C.header || fallback, cap: 'Light mode — header color'},
     {bg: DARK_STAGE, cap: 'Dark mode — default background'}
   ];
-  const logoBlock = logoDataUrl
-    ? `<div class="logos">${stages.map(s => `<div class="logotile"><div class="stage" style="background:${s.bg}"><img src="${logoDataUrl}" alt="logo"></div><div class="cap">${esc(s.cap)}</div></div>`).join('')}</div>
-       <p class="muted" style="margin-top:10px">Logos are exempt from contrast rules, so judge these by eye. If the logo disappears on any tile, that variant is missing from the client's material.</p>`
+  const logoBlock = logoDataUrls.length
+    ? logoDataUrls.map((u, i) => `<div class="logos" style="margin-bottom:12px">${stages.map(st => `<div class="logotile"><div class="stage" style="background:${st.bg}"><img src="${u}" alt="logo ${i+1}"></div><div class="cap">${esc(st.cap)}${logoDataUrls.length > 1 ? ' · logo ' + (i+1) : ''}</div></div>`).join('')}</div>`).join('')
+      + `<p class="muted" style="margin-top:10px">Logos are exempt from contrast rules, so judge these by eye. If the logo disappears on any tile, that variant is missing from the client's material.</p>`
     : '<p class="muted">No logo in this styleguide.</p>';
+  const copyBlock = bannerCopyBlock(C);
 
   const gradDefs = [];
   if(C.header && C.buttons) gradDefs.push({name:'Header → Buttons', css:`linear-gradient(135deg, ${C.header} 0%, ${C.buttons} 100%)`});
@@ -1051,7 +1078,6 @@ function build(){
     network: name || null, source: url || null,
     primitive: prim, semantic: sem,
     gradients: Object.fromEntries(gradDefs.map(g => [g.name.toLowerCase().replace(/[^a-z]+/g,'-').replace(/^-|-$/g,''), g.css])),
-    spaces: spaces.map(s => ({ group: s.group || null, name: s.name, color: s.hex })),
     note: 'Logo sits outside tokens. Fonts are fixed by Mighty.'
   };
   const tokensText = JSON.stringify(tokens, null, 2);
@@ -1062,7 +1088,6 @@ function build(){
   ROLES.forEach(r => { if(!C[r.key]) miss.push('Color: ' + r.full); });
   if(!url) miss.push('Network address (source)');
   if(!photo) miss.push('Photo style');
-  spaces.forEach(s => { if(!s.hex) miss.push('Space color for "' + s.name + '" (use #hex)'); });
 
   $('out').innerHTML = `${onlyUrl ? '<section class="card" style="border-color:#6d5efc"><h2>Only the address is saved</h2><p class="muted">This tool does not read websites. Add a logo or brand colors, or send the address to Claude in chat: it will scan the site and fill these in for you.</p></section>' : ''}${todoHtml}
     <section class="card">
@@ -1076,7 +1101,7 @@ function build(){
       ${logoBlock}
     </section>
 
-    ${spacesBlock}
+    ${copyBlock}
 
     <section class="card">
       <h2>Color roles</h2>
@@ -1123,6 +1148,7 @@ function build(){
     </section>`;
 
   $('copyTokens').addEventListener('click', () => copyText(window._tokens, 'Tokens copied.'));
+  $('out').querySelectorAll('[data-copy-i]').forEach(b => b.addEventListener('click', () => copyText(window._copyEx[+b.dataset.copyI], 'Banner copy copied.')));
   $('out').querySelectorAll('.grad').forEach(g => g.addEventListener('click', () => copyText(g.dataset.css, 'Gradient CSS copied.')));
   $('out').querySelectorAll('.chip[data-hex]').forEach(c => c.addEventListener('click', () => copyText(c.dataset.hex, c.dataset.hex + ' copied.')));
   setMsg('');
