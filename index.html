@@ -232,6 +232,12 @@ ul{margin:6px 0 0 18px;padding:0}
         <button class="mini" id="scan" style="padding:10px 14px;white-space:nowrap">Scan address</button>
       </div>
       <p class="hint">Scan reads colors, fonts, logo candidates and photos from the site. Nothing is saved until you build.</p>
+      <details style="margin-top:12px">
+        <summary class="hint">Visual palette (free): paste colors from a rendered page</summary>
+        <textarea id="vpal" placeholder='{"colors":[{"hex":"#24344c","share":7.8}]}' style="min-height:80px;margin-top:6px"></textarea>
+        <button class="mini" id="vpalGo" style="margin-top:6px">Use visual palette</button>
+        <p class="hint">Colors weighted by pixels from a screenshot of the page, so gradients and JavaScript colors count. Photos also add colors: pick the brand ones.</p>
+      </details>
       <div id="scanBox"></div>
     </section>
 
@@ -336,6 +342,23 @@ function fixFor(c, partner, min){
   return null;
 }
 function bestText(bg){ return ratio(bg, WHITE) >= ratio(bg, DARK_TEXT) ? WHITE : DARK_TEXT; }
+/* Mighty buttons always carry white text, so the button colour is darkened until white passes 4.5:1. */
+function buttonPick(c, head){
+  if(!c) return {hex:null, both:true};
+  const ok = x => ratio(x, WHITE) >= 4.5 && (!head || ratio(x, head) >= 3);
+  if(ok(c)) return {hex:c, both:true};
+  const [H,S,L] = hexToHsl(c);
+  let best = null, cost = Infinity;
+  for(let s = 0; s <= 100; s += 2) for(let l = 0; l <= 100; l += 0.5){
+    const cand = hslToHex([H, s, l]);
+    if(!ok(cand)) continue;
+    const k = Math.abs(l - L) + Math.abs(s - S) * 0.5;
+    if(k < cost){ cost = k; best = cand; }
+  }
+  if(best) return {hex:best, both:true};
+  return {hex: fixFor(c, WHITE, 4.5) || c, both:false}; // white text only; header check cannot pass
+}
+function buttonFor(c, head){ return buttonPick(c, head).hex; }
 function scale(base){
   return {
     '50': mix(base, WHITE, .92), '100': mix(base, WHITE, .80), '200': mix(base, WHITE, .60),
@@ -396,6 +419,18 @@ ROLES.forEach(r => {
 ['url','photo','netname','devices'].forEach(id => $(id).addEventListener('input', update));
 // ręczna zmiana opisu zdjęć blokuje nadpisanie przy kolejnym skanie
 $('photo').addEventListener('input', e => { if(e.isTrusted) e.target.dataset.auto = '0'; });
+$('vpalGo').addEventListener('click', () => {
+  let j;
+  try { j = JSON.parse($('vpal').value); } catch(e) { setMsg('This is not valid JSON.'); return; }
+  const list = (Array.isArray(j.colors) ? j.colors : [])
+    .map(c => ({ hex: normHex(c.hex), count: Math.round((c.share || c.count || 1) * 100) }))
+    .filter(c => c.hex);
+  if(!list.length){ setMsg('No colors in this JSON.'); return; }
+  const base = { title: '', source: '', images: [], logo_candidates: [], fonts: [], icons: [], warnings: [], image_alts: [], headings: { h1: [], h2: [] }, cta_texts: [], description: '' };
+  const prev = window._scan || {};
+  showScan({ ...base, ...prev, source: j.source || prev.source || '', title: prev.title || j.source || 'Visual palette', colors: list });
+  setMsg('Visual palette applied.');
+});
 
 document.querySelectorAll('[data-swap]').forEach(b => {
   b.addEventListener('click', () => {
@@ -635,6 +670,18 @@ function describePhotos(stats){
   parts.push(contrast > 0.25 ? 'high contrast' : 'soft contrast');
   return parts.join(', ');
 }
+/* Same picture under another URL: drop query/hash and WordPress size suffixes (-300x200). */
+function photoKey(u){
+  try{
+    const x = new URL(u);
+    return x.host + x.pathname.replace(/-\d+x\d+(?=\.[a-z0-9]{3,4}$)/i, '').toLowerCase();
+  }catch(e){ return u; }
+}
+function samePicture(a, b){
+  if(!a.print || !b.print) return false;
+  let d = 0; for(let i = 0; i < 64; i++) d += Math.abs(a.print[i] - b.print[i]);
+  return d / 64 < 0.04;
+}
 async function imgStats(url){
   const r = await fetch(SCANNER + '/image?url=' + encodeURIComponent(url));
   if(!r.ok) return null;
@@ -656,8 +703,13 @@ async function imgStats(url){
   }
   if(!n) return null;
   const mL = L/n;
+  // 8x8 luminance fingerprint, used to spot the same picture served under different URLs
+  const fc = document.createElement('canvas'); fc.width = 8; fc.height = 8;
+  const fx = fc.getContext('2d'); fx.drawImage(bmp, 0, 0, 8, 8);
+  const fd = fx.getImageData(0, 0, 8, 8).data, print = [];
+  for(let i = 0; i < fd.length; i += 4) print.push((0.3*fd[i] + 0.59*fd[i+1] + 0.11*fd[i+2]) / 255);
   return { url, w: bmp.width, h: bmp.height, bright: mL, sat: S/n, warm: warm/n, gray: gray/n,
-           contrast: Math.sqrt(Math.max(0, L2/n - mL*mL)) };
+           contrast: Math.sqrt(Math.max(0, L2/n - mL*mL)), print };
 }
 async function useLogoFromUrl(u){
   try {
@@ -840,7 +892,7 @@ function bannerCopyBlock(C){
   if(!ex.length) return `<section class="card"><h2>Banner copy</h2><p class="muted">The site gave no headings or description. Scan the address first, or write the copy by hand.</p></section>`;
   window._copyEx = ex.map(x => [x.head, x.sub, x.cta].filter(Boolean).join('\n'));
   const bg = C.header || '#9aa3b2', fg = bestText(bg);
-  const btnBg = C.buttons || '#9aa3b2', btnFg = bestText(btnBg);
+  const btnBg = buttonFor(C.buttons, C.header) || '#9aa3b2', btnFg = WHITE;
   const cards = ex.map((x, i) => `
     <div class="copy-ex">
       <div class="copy-banner" style="background:${bg};color:${fg}">
@@ -884,7 +936,8 @@ function familySummary(list){
     fams[name].count += c.count;
     fams[name].shades++;
     const score = c.count * S;
-    if(!accent || score > accent.score) accent = { hex: c.hex, score };
+    // akcent nie może być prawie czarny ani prawie biały
+    if(L >= 0.12 && L <= 0.92 && (!accent || score > accent.score)) accent = { hex: c.hex, score };
   });
   const names = Object.entries(fams).sort((a, b) => b[1].count - a[1].count);
   if(!names.length || !accent) return 'No strongly saturated colors on the site. Pick the accent by eye.';
@@ -897,6 +950,10 @@ async function showScan(d){
   const box = $('scanBox'); box.innerHTML = '';
   box.appendChild(el('div', 'Site scan: ' + (d.title || d.source || ''), 'scan-title'));
   (d.warnings || []).forEach(w => box.appendChild(el('div', '⚠ ' + w, 'hint')));
+  if(d.diagnostics){
+    const g = d.diagnostics;
+    box.appendChild(el('div', `Diagnostics: HTTP ${g.http_status}, HTML ${g.html_bytes} bytes, server ${g.server || 'unknown'}${g.cf_mitigated ? ', cf-mitigated: ' + g.cf_mitigated : ''}.`, 'hint'));
+  }
 
   // Kolory: wypełniamy tylko puste role
   const cands = brandCandidates(d.colors);
@@ -943,12 +1000,17 @@ async function showScan(d){
     box.appendChild(grid);
   }
 
-  const photos = d.images.filter(u => !/\.(svg|ico|gif)(\?|$)/i.test(u)).slice(0, 12);
+  const seenKeys = new Set();
+  const photos = d.images.filter(u => !/\.(svg|ico|gif)(\?|$)/i.test(u))
+    .filter(u => { const k = photoKey(u); if(seenKeys.has(k)) return false; seenKeys.add(k); return true; })
+    .slice(0, 16);
   if(photos.length){
     const note = el('div', 'Photos from the site: analysing…', 'hint');
     box.appendChild(note);
-    const stats = (await Promise.all(photos.map(u => imgStats(u).catch(() => null))))
-      .filter(s => s && s.w >= 200 && s.h >= 120).slice(0, 8);
+    const all = (await Promise.all(photos.map(u => imgStats(u).catch(() => null))))
+      .filter(s => s && s.w >= 200 && s.h >= 120);
+    const stats = [];
+    all.forEach(s => { if(stats.length < 8 && !stats.some(k => samePicture(k, s))) stats.push(s); });
     if(!stats.length){
       note.textContent = 'No usable photos found (too small or not loaded).';
       box.appendChild(stockTagsBlock([], d));
@@ -1017,29 +1079,34 @@ function build(){
   });
   const fallback = '#9aa3b2';
   const onlyUrl = !logoDataUrl && !ROLES.some(r => normHex($('c-'+r.key).value));
-  const btnText = C.buttons ? bestText(C.buttons) : WHITE;
+  const btnText = WHITE; // Mighty button text is always white
 
   /* contrast pairs — text 4.5:1, UI parts 3:1 */
   const pairs = [];
   const whiteHeader = $('whiteHeader').checked;
   const headerBg = whiteHeader ? WHITE : C.header;
+  const btnPick = buttonPick(C.buttons, headerBg); // shade that passes white text AND the header check
+  const btnShown = btnPick.hex;
+  const btnFix = btnShown && btnShown !== C.buttons ? btnShown : null;
+  const btnConflict = !btnPick.both;
   if(C.header && !whiteHeader) pairs.push({what:'White text on header', fg:WHITE, bg:C.header, min:4.5, adjust:'bg', role:'header'});
   if(C.header && whiteHeader)  pairs.push({what:'Header text on white', fg:C.header, bg:WHITE, min:4.5, adjust:'fg', role:'header'});
-  if(C.buttons) pairs.push({what:'Button text on buttons & tabs', fg:btnText, bg:C.buttons, min:4.5, adjust:'bg', role:'buttons'});
+  if(C.buttons) pairs.push({what:'White text on buttons & tabs', fg:btnText, bg:C.buttons, min:4.5, adjust:'bg', role:'buttons', fixOverride:btnFix, conflict:btnConflict});
   if(C.links)   pairs.push({what:'Link text on white', fg:C.links, bg:WHITE, min:4.5, adjust:'fg', role:'links'});
-  if(C.buttons && headerBg) pairs.push({what: whiteHeader ? 'Button against white header (UI)' : 'Button against header (UI)', fg:C.buttons, bg:headerBg, min:3, adjust:'fg', role:'buttons'});
+  if(C.buttons && headerBg) pairs.push({what: whiteHeader ? 'Button against white header (UI)' : 'Button against header (UI)', fg:C.buttons, bg:headerBg, min:3, adjust:'fg', role:'buttons', fixOverride:btnFix, conflict:btnConflict});
   if(C.links && headerBg)   pairs.push({what: whiteHeader ? 'Active icon on white header (UI)' : 'Active icon on header (UI)', fg:C.links, bg:headerBg, min:3, adjust:'fg', role:'links'});
 
   const checks = pairs.map(p => {
     const r = ratio(p.fg, p.bg), ok = r >= p.min;
     const moving = p.adjust === 'fg' ? p.fg : p.bg;
     const against = p.adjust === 'fg' ? p.bg : p.fg;
-    const fixed = ok ? null : fixFor(moving, against, p.min);
+    const fixed = ok || p.conflict ? null : (p.fixOverride || fixFor(moving, against, p.min));
     return {...p, r, ok, fixed, after: fixed ? ratio(fixed, against) : null};
   });
   const failing = checks.filter(c => !c.ok).length;
   const todo = checks.filter(c => !c.ok).map(c => {
     const role = ROLES.find(r => r.key === c.role).full;
+    if(c.conflict) return `${c.what}: no shade passes both white text and the header. Change the header colour or the button colour.`;
     return c.fixed
       ? `Change ${role} to ${c.fixed}. ${c.what} is ${c.r.toFixed(2)}:1 and needs ${c.min}:1.`
       : `${c.what}: no passing shade found. Pick a different base color.`;
@@ -1049,7 +1116,7 @@ function build(){
       <td>${esc(c.what)}<div class="muted">needs ${c.min}:1</div></td>
       <td><span class="dot" style="background:${c.fg}"></span>${c.fg}<span class="muted"> on </span><span class="dot" style="background:${c.bg}"></span>${c.bg}</td>
       <td>${c.r.toFixed(2)}:1 ${c.ok ? '<span class="pill ok">pass</span>' : '<span class="pill bad">fail</span>'}</td>
-      <td>${c.ok ? '<span class="muted">no change needed</span>' : (c.fixed ? `change ${esc(ROLES.find(r=>r.key===c.role).full)} to <strong>${c.fixed}</strong> <span class="muted">(${c.after.toFixed(2)}:1)</span>` : '<span class="pill bad">no fix found</span>')}</td>
+      <td>${c.ok ? '<span class="muted">no change needed</span>' : c.conflict ? '<span class="muted">no shade passes both: change header or button colour</span>' : (c.fixed ? `change ${esc(ROLES.find(r=>r.key===c.role).full)} to <strong>${c.fixed}</strong> <span class="muted">(${c.after.toFixed(2)}:1)</span>` : '<span class="pill bad">no fix found</span>')}</td>
     </tr>`).join('') || '<tr><td colspan="4" class="muted">No colors to check yet.</td></tr>';
 
   const srcRows = ROLES.map(r => `<tr>
@@ -1063,8 +1130,8 @@ function build(){
     <div class="preview">
       <div class="top" style="background:${whiteHeader ? WHITE : (C.header || fallback)};color:${whiteHeader ? (C.header || '#14171c') : WHITE}">${logoImg}${logoDataUrl ? '' : `<strong>${esc(name || 'Network name')}</strong>`}</div>
       <div class="body">
-        <button class="pbtn" style="background:${C.buttons || fallback};color:${btnText}">Join now</button>
-        <span class="tab" style="background:${C.buttons || fallback};color:${btnText}">Community</span>
+        <button class="pbtn" style="background:${btnShown || fallback};color:${btnText}">Join now</button>
+        <span class="tab" style="background:${btnShown || fallback};color:${btnText}">Community</span>
         <a class="plink" href="#" onclick="return false" style="color:${C.links || '#374151'}">Example link</a>
       </div>
     </div>`;
@@ -1081,10 +1148,10 @@ function build(){
   const copyBlock = bannerCopyBlock(C);
 
   const gradDefs = [];
-  if(C.header && C.buttons) gradDefs.push({name:'Header → Buttons', css:`linear-gradient(135deg, ${C.header} 0%, ${C.buttons} 100%)`});
+  if(C.header && btnShown) gradDefs.push({name:'Header → Buttons', css:`linear-gradient(135deg, ${C.header} 0%, ${btnShown} 100%)`});
   if(C.header)              gradDefs.push({name:'Header depth', css:`linear-gradient(135deg, ${C.header} 0%, ${mix(C.header, WHITE, 0.35)} 100%)`});
-  if(C.buttons && C.links)  gradDefs.push({name:'Buttons → Links', css:`linear-gradient(135deg, ${C.buttons} 0%, ${C.links} 100%)`});
-  if(C.buttons)             gradDefs.push({name:'Buttons depth', css:`linear-gradient(135deg, ${C.buttons} 0%, ${mix(C.buttons, WHITE, 0.35)} 100%)`});
+  if(btnShown && C.links)  gradDefs.push({name:'Buttons → Links', css:`linear-gradient(135deg, ${btnShown} 0%, ${C.links} 100%)`});
+  if(btnShown)             gradDefs.push({name:'Buttons depth', css:`linear-gradient(135deg, ${btnShown} 0%, ${mix(btnShown, WHITE, 0.35)} 100%)`});
   if(C.header && C.links && C.header !== C.links) gradDefs.push({name:'Header → Links', css:`linear-gradient(135deg, ${C.header} 0%, ${C.links} 100%)`});
   const gradBlock = gradDefs.length
     ? `<div class="grads">${gradDefs.map(g => `<div class="grad" data-css="${esc(g.css)}" title="Click to copy the CSS"><div class="fill" style="background:${g.css}"></div><div class="cap"><strong>${esc(g.name)}</strong><br>${esc(g.css)}</div></div>`).join('')}</div>
@@ -1102,7 +1169,7 @@ function build(){
   ROLES.forEach(r => { if(C[r.key]) prim[r.key] = scale(C[r.key]); });
   const sem = {};
   if(C.header)  sem['header-bg'] = {light: C.header, dark: scale(C.header)['900'], note: 'dark mode is a suggestion'};
-  if(C.buttons) sem['button-bg'] = C.buttons;
+  if(btnShown) sem['button-bg'] = btnShown;
   if(C.links)   sem['link-text'] = C.links;
   const tokens = {
     network: name || null, source: url || null,
