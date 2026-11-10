@@ -596,9 +596,6 @@ $('brief').addEventListener('click', () => {
   if($('url').value.trim()) L.push('Source: ' + $('url').value.trim());
   ROLES.forEach(r => { const v = normHex($('c-'+r.key).value); if(v) L.push(r.full + ': ' + v + ' (' + ($('c-'+r.key).dataset.auto === '1' ? 'from ' + ($('c-'+r.key).dataset.src || 'logo') : 'entered') + ')'); });
   L.push('Header: ' + ($('whiteHeader').checked ? 'white bar' : 'colored bar'));
-  const todo = [...$('out').querySelectorAll('ol li')].map(li => li.innerText);
-  L.push('', 'What to change:');
-  if(todo.length) todo.forEach(t => L.push('- ' + t)); else L.push('- Nothing, all contrast checks pass.');
   const devs = $('devices').value.trim();
   if(devs){ L.push('', 'Graphic devices:'); devs.split(/[;\n]+/).map(d => d.trim()).filter(Boolean).forEach(d => L.push('- ' + d)); }
   if($('photo').value.trim()) L.push('', 'Photo style: ' + $('photo').value.trim() + ' (entered by you, verify before use)');
@@ -860,6 +857,41 @@ function bannerCopyBlock(C){
   </section>`;
 }
 
+// Odcień dominujący i kolor akcentowy z listy kolorów skanu
+function hueName(h){
+  if(h < 15 || h >= 345) return 'red';
+  if(h < 45) return 'orange';
+  if(h < 70) return 'yellow';
+  if(h < 160) return 'green';
+  if(h < 200) return 'teal';
+  if(h < 255) return 'blue';
+  if(h < 300) return 'purple';
+  return 'pink';
+}
+function familySummary(list){
+  const fams = {};
+  let accent = null;
+  list.forEach(c => {
+    const [r, g, b] = rgb(c.hex).map(v => v / 255);
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), L = (mx + mn) / 2, d = mx - mn;
+    if(d < 0.08) return;
+    const S = L > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+    if(S < 0.25) return;
+    let H = mx === r ? ((g - b) / d + (g < b ? 6 : 0)) : mx === g ? ((b - r) / d + 2) : ((r - g) / d + 4);
+    H *= 60;
+    const name = hueName(H);
+    fams[name] = fams[name] || { count: 0, shades: 0 };
+    fams[name].count += c.count;
+    fams[name].shades++;
+    const score = c.count * S;
+    if(!accent || score > accent.score) accent = { hex: c.hex, score };
+  });
+  const names = Object.entries(fams).sort((a, b) => b[1].count - a[1].count);
+  if(!names.length || !accent) return 'No strongly saturated colors on the site. Pick the accent by eye.';
+  const [top, info] = names[0];
+  return `Main hue on the site: ${top} (${info.shades} shades in the top colors). Likely accent: ${accent.hex}, the most used saturated color. Verify by eye.`;
+}
+
 async function showScan(d){
   window._scan = d;
   const box = $('scanBox'); box.innerHTML = '';
@@ -880,6 +912,7 @@ async function showScan(d){
 
   const sw = cands.map(c => ({ hex: c.hex, count: c.n }));
   if(sw.length){
+    box.appendChild(el('div', familySummary(d.colors || []), 'hint'));
     box.appendChild(el('div', 'Brand candidates from the site (framework defaults removed; click to assign):', 'hint'));
     const row = el('div', '', 'scan-row');
     sw.forEach(c => {
@@ -1011,9 +1044,6 @@ function build(){
       ? `Change ${role} to ${c.fixed}. ${c.what} is ${c.r.toFixed(2)}:1 and needs ${c.min}:1.`
       : `${c.what}: no passing shade found. Pick a different base color.`;
   });
-  const todoHtml = `<section class="card"><h2>What to change</h2>${todo.length
-    ? '<ol>' + todo.map(t => `<li style="margin:6px 0">${esc(t)}</li>`).join('') + '</ol>'
-    : '<p class="muted">Nothing to change. All contrast checks pass.</p>'}</section>`;
 
   const rows = checks.map(c => `<tr>
       <td>${esc(c.what)}<div class="muted">needs ${c.min}:1</div></td>
@@ -1089,13 +1119,7 @@ function build(){
   if(!url) miss.push('Network address (source)');
   if(!photo) miss.push('Photo style');
 
-  $('out').innerHTML = `${onlyUrl ? '<section class="card" style="border-color:#6d5efc"><h2>Only the address is saved</h2><p class="muted">This tool does not read websites. Add a logo or brand colors, or send the address to Claude in chat: it will scan the site and fill these in for you.</p></section>' : ''}${todoHtml}
-    <section class="card">
-      <h2>${name ? esc(name) : 'Styleguide'} <span class="badge${failing ? '' : ' done'}">${failing ? failing + ' contrast issue' + (failing > 1 ? 's' : '') : 'contrast OK'}</span></h2>
-      ${url ? `<p class="muted">Source: <a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a></p>` : ''}
-      ${preview}
-    </section>
-
+  $('out').innerHTML = `${onlyUrl ? '<section class="card" style="border-color:#6d5efc"><h2>Only the address is saved</h2><p class="muted">This tool does not read websites. Add a logo or brand colors, or send the address to Claude in chat: it will scan the site and fill these in for you.</p></section>' : ''}
     <section class="card">
       <h2>Logo on Mighty backgrounds</h2>
       ${logoBlock}
@@ -1139,15 +1163,8 @@ function build(){
       ${miss.length ? `<ul>${miss.map(m => `<li>${esc(m)}</li>`).join('')}</ul>` : '<p class="muted">Nothing missing.</p>'}
     </section>
 
-    <section class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-        <h2 style="margin:0">Design tokens (JSON for Figma import)</h2>
-        <button class="btn ghost no-print" id="copyTokens">Copy</button>
-      </div>
-      <pre>${esc(tokensText)}</pre>
-    </section>`;
+    `;
 
-  $('copyTokens').addEventListener('click', () => copyText(window._tokens, 'Tokens copied.'));
   $('out').querySelectorAll('[data-copy-i]').forEach(b => b.addEventListener('click', () => copyText(window._copyEx[+b.dataset.copyI], 'Banner copy copied.')));
   $('out').querySelectorAll('.grad').forEach(g => g.addEventListener('click', () => copyText(g.dataset.css, 'Gradient CSS copied.')));
   $('out').querySelectorAll('.chip[data-hex]').forEach(c => c.addEventListener('click', () => copyText(c.dataset.hex, c.dataset.hex + ' copied.')));
